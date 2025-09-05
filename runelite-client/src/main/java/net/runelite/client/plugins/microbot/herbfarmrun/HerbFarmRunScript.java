@@ -1,11 +1,15 @@
 package net.runelite.client.plugins.microbot.herbfarmrun;
 
 import net.runelite.api.GameObject;
+import net.runelite.api.ItemID;
 import net.runelite.api.ObjectComposition;
+import net.runelite.api.TileObject;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.herbfarmrun.enums.PatchLocation;
+import net.runelite.client.plugins.microbot.inventorysetups.InventorySetup;
+import net.runelite.client.plugins.microbot.inventorysetups.MInventorySetupsPlugin;
 import net.runelite.client.plugins.microbot.util.Rs2InventorySetup;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
@@ -14,6 +18,7 @@ import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -22,10 +27,11 @@ import java.util.stream.IntStream;
 
 public class HerbFarmRunScript extends Script {
 
-    public static double version = 5.0; // Incremented version
+    public static double version = 5.2; // Incremented version
 
     private HerbFarmRunConfig config;
     private List<PatchLocation> patchesToFarm = new ArrayList<>();
+    private InventorySetup inventorySetup;
     private int currentPatchIndex = 0;
     private boolean initialized = false;
 
@@ -33,6 +39,11 @@ public class HerbFarmRunScript extends Script {
 
     private void initialize(HerbFarmRunConfig config) {
         this.config = config;
+        this.inventorySetup = MInventorySetupsPlugin.getInventorySetups().stream()
+                .filter(x -> x.getName().equalsIgnoreCase(config.inventorySetup()))
+                .findFirst()
+                .orElse(null);
+
         patchesToFarm.clear();
         if (config.enableFaladorPatch()) patchesToFarm.add(PatchLocation.FALADOR);
         if (config.enableCatherbyPatch()) patchesToFarm.add(PatchLocation.CATHERBY);
@@ -61,11 +72,23 @@ public class HerbFarmRunScript extends Script {
                 if (!Microbot.isLoggedIn() || !super.run()) return;
 
                 if (!initialized) {
-                    if (config.inventorySetup() == null) {
-                        Microbot.status = "Waiting for Inventory Setup to load...";
+                    if (config.inventorySetup().isEmpty()) {
+                        Microbot.showMessage("Herb Farm Run: Please specify an inventory setup name in the plugin settings.");
+                        shutdown();
+                        return;
+                    }
+                    if (!Rs2InventorySetup.isInventorySetup(config.inventorySetup())) {
+                        Microbot.showMessage("Inventory setup '" + config.inventorySetup() + "' not found! Please check the name.");
+                        shutdown();
                         return;
                     }
                     initialize(config);
+                }
+
+                if (inventorySetup == null) {
+                    Microbot.showMessage("Inventory setup failed to load. Please check the setup and restart the script.");
+                    shutdown();
+                    return;
                 }
 
                 if (!handleBanking()) {
@@ -97,20 +120,20 @@ public class HerbFarmRunScript extends Script {
             return;
         }
 
-        if (farmPatch()) {
+        if (farmPatch(currentPatch)) {
             currentPatchIndex++;
         }
     }
 
     private boolean handleBanking() {
-        var inventorySetup = new Rs2InventorySetup(config.inventorySetup(), mainScheduledFuture);
-        if (inventorySetup.doesInventoryMatch() && inventorySetup.doesEquipmentMatch()) {
+        var rs2InventorySetup = new Rs2InventorySetup(this.inventorySetup, mainScheduledFuture);
+        if (rs2InventorySetup.doesInventoryMatch() && rs2InventorySetup.doesEquipmentMatch()) {
             return true;
         }
 
         Microbot.status = "Banking for required items...";
         if (Rs2Bank.isOpen()) {
-            if (inventorySetup.loadInventory() && inventorySetup.loadEquipment()) {
+            if (rs2InventorySetup.loadInventory() && rs2InventorySetup.loadEquipment()) {
                 Rs2Bank.closeBank();
                 sleep(600);
                 return true;
@@ -140,9 +163,17 @@ public class HerbFarmRunScript extends Script {
         Microbot.showMessage("Herb farm run completed.");
     }
 
-    private boolean farmPatch() {
-        // FIX: Replaced findObject with the modern, non-deprecated getGameObject
-        GameObject patch = Rs2GameObject.getGameObject(HERB_PATCH_IDS);
+    private TileObject findPatchOnTile(PatchLocation currentPatch) {
+        List<TileObject> objectsOnTile = Rs2GameObject.getAll(
+                o -> Arrays.stream(HERB_PATCH_IDS).anyMatch(id -> o.getId() == id),
+                currentPatch.getWorldPoint(),
+                0
+        );
+        return objectsOnTile.isEmpty() ? null : objectsOnTile.get(0);
+    }
+
+    private boolean farmPatch(PatchLocation currentPatch) {
+        TileObject patch = findPatchOnTile(currentPatch);
         if (patch == null) {
             Microbot.status = "Searching for patch...";
             return false;
@@ -162,8 +193,7 @@ public class HerbFarmRunScript extends Script {
             Microbot.status = "State: Harvesting patch";
             Rs2GameObject.interact(patch);
             sleepUntil(() -> {
-                // FIX: Use the correct getGameObject(int id) method
-                GameObject p = Rs2GameObject.getGameObject(patch.getId());
+                TileObject p = findPatchOnTile(currentPatch);
                 ObjectComposition comp = p != null ? Rs2GameObject.convertToObjectComposition(p) : null;
                 return comp == null || !Rs2GameObject.hasAction(comp, "Harvest");
             }, 15000);
@@ -174,26 +204,36 @@ public class HerbFarmRunScript extends Script {
             Microbot.status = "State: Clearing patch";
             Rs2GameObject.interact(patch);
             sleepUntil(() -> {
-                // FIX: Use the correct getGameObject(int id) method
-                GameObject p = Rs2GameObject.getGameObject(patch.getId());
+                TileObject p = findPatchOnTile(currentPatch);
                 ObjectComposition comp = p != null ? Rs2GameObject.convertToObjectComposition(p) : null;
-                return comp == null || (!Rs2GameObject.hasAction(comp, "Rake")
-                        && !Rs2GameObject.hasAction(comp, "Clear"));
+                return comp != null && comp.getName().equalsIgnoreCase("Herb patch");
             }, 10000);
             return false;
         }
 
         if (patchComposition.getName().equalsIgnoreCase("Herb patch")) {
             Microbot.status = "State: Using compost";
-            int compostId = config.compostToUse().getItemId();
-            if (!Rs2Inventory.hasItem(compostId)) {
-                Microbot.log("Out of " + config.compostToUse().getName() + "!");
-                return true;
+            if (config.useBottomlessBucket()) {
+                if (!Rs2Inventory.hasItem(ItemID.BOTTOMLESS_COMPOST_BUCKET)) {
+                    Microbot.log("Bottomless bucket not found!");
+                    return true; // Skip patch
+                }
+                Rs2Inventory.use(ItemID.BOTTOMLESS_COMPOST_BUCKET);
+            } else {
+                int compostId = config.compostToUse().getItemId();
+                if (!Rs2Inventory.hasItem(compostId)) {
+                    Microbot.log("Out of " + config.compostToUse().getName() + "!");
+                    return true; // Skip patch
+                }
+                Rs2Inventory.use(compostId);
             }
-            int initialEmptyBuckets = Rs2Inventory.count("Bucket");
-            Rs2Inventory.use(compostId);
+
             Rs2GameObject.interact(patch);
-            sleepUntil(() -> Rs2Inventory.count("Bucket") > initialEmptyBuckets, 5000);
+            sleepUntil(() -> {
+                TileObject p = findPatchOnTile(currentPatch);
+                ObjectComposition comp = p != null ? Rs2GameObject.convertToObjectComposition(p) : null;
+                return comp != null && comp.getName().toLowerCase().contains("compost");
+            }, 5000);
             return false;
         }
 
@@ -202,14 +242,16 @@ public class HerbFarmRunScript extends Script {
             int seedId = config.herbToFarm().getSeedId();
             if (!Rs2Inventory.hasItem(seedId)) {
                 Microbot.log("Out of " + config.herbToFarm().getName() + " seeds!");
-                return true;
+                return true; // Skip patch
             }
-            int patchId = patch.getId();
             Rs2Inventory.use(seedId);
             Rs2GameObject.interact(patch);
-            // FIX: Use the correct getGameObject(int id) method
-            sleepUntil(() -> Rs2GameObject.getGameObject(patchId) == null, 5000);
-            return true;
+            sleepUntil(() -> {
+                TileObject p = findPatchOnTile(currentPatch);
+                ObjectComposition comp = p != null ? Rs2GameObject.convertToObjectComposition(p) : null;
+                return comp != null && !comp.getName().equalsIgnoreCase(patchComposition.getName());
+            }, 5000);
+            return true; // Patch is done
         }
 
         Microbot.status = "State: Patch is growing. Moving on.";

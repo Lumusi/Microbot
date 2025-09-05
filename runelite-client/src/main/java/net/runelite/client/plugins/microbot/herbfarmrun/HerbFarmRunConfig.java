@@ -3,7 +3,6 @@ package net.runelite.client.plugins.microbot.herbfarmrun;
 import net.runelite.client.config.*;
 import net.runelite.client.plugins.microbot.herbfarmrun.enums.Compost;
 import net.runelite.client.plugins.microbot.herbfarmrun.enums.Herbs;
-import net.runelite.client.plugins.microbot.inventorysetups.InventorySetup;
 
 @ConfigGroup("herbfarmrun")
 public interface HerbFarmRunConfig extends Config {
@@ -18,13 +17,13 @@ public interface HerbFarmRunConfig extends Config {
 
     @ConfigItem(
             keyName = "inventorySetup",
-            name = "Inventory Setup",
-            description = "Inventory setup to use",
+            name = "Inventory Setup Name",
+            description = "The name of the inventory setup to use (case-sensitive)",
             position = 0,
             section = generalSettings
     )
-    default InventorySetup inventorySetup() {
-        return null;
+    default String inventorySetup() {
+        return "";
     }
 
     @ConfigItem(
@@ -49,12 +48,23 @@ public interface HerbFarmRunConfig extends Config {
         return Compost.ULTRACOMPOST;
     }
 
+    @ConfigItem(
+            keyName = "useBottomlessBucket",
+            name = "Use Bottomless Bucket",
+            description = "If checked, the script will use the Bottomless Compost Bucket.",
+            position = 3,
+            section = generalSettings
+    )
+    default boolean useBottomlessBucket() {
+        return false;
+    }
+
 
     @ConfigItem(
             keyName = "goToBankAtEnd",
             name = "Go to Bank at End",
             description = "Go to the closest bank after the run is finished",
-            position = 3,
+            position = 4,
             section = generalSettings
     )
     default boolean goToBankAtEnd() {
