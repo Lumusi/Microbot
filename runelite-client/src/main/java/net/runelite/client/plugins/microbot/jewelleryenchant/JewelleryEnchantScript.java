@@ -5,13 +5,11 @@ import net.runelite.client.plugins.microbot.Script;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
-import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.magic.Rs2Magic;
 import net.runelite.client.plugins.microbot.util.magic.Runes;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Predicate;
 
 public class JewelleryEnchantScript extends Script {
 
@@ -49,7 +47,7 @@ public class JewelleryEnchantScript extends Script {
             } catch (Exception ex) {
                 System.out.println(ex.getMessage());
             }
-        }, 0, 1200, TimeUnit.MILLISECONDS);
+        }, 0, 2000, TimeUnit.MILLISECONDS);
         return true;
     }
 
@@ -59,47 +57,37 @@ public class JewelleryEnchantScript extends Script {
             return;
         }
 
-        // Step 1: Deposit everything except our cosmic runes. This cleans the inventory of enchanted jewellery and any leftover staves.
         Rs2Bank.depositAllExcept(item -> item.getId() == Runes.COSMIC.getItemId());
         sleep(300, 500);
 
-        // Step 2: Handle equipping the correct staff.
         handleStaffEquipping(jewellery);
-
-        // Step 3: Withdraw runes and jewellery into the now clean inventory.
         ensureCorrectRunes(jewellery);
         handleJewelleryWithdrawal(jewellery);
     }
 
-    /**
-     * Equips the correct staff if not already worn, and then deposits any other staves that were displaced into the inventory.
-     */
     private void handleStaffEquipping(Jewellery jewellery) {
         Runes elementalRune = jewellery.getElementalRune();
-
-        // If we are already wearing the correct staff, we don't need to do anything.
         if (isWearingElementalStaffFor(elementalRune)) {
             return;
         }
 
-        // Find the best available staff for the required rune in the bank.
         int staffToWithdraw = -1;
         for (ElementalStaff staff : ElementalStaff.values()) {
-            if (staff.getRune() == elementalRune && Rs2Bank.hasItem(staff.getItemId())) {
+            if (staff.providesRune(elementalRune) && Rs2Bank.hasItem(staff.getItemId())) {
                 staffToWithdraw = staff.getItemId();
-                break; // Found a suitable staff, stop searching.
+                break;
             }
         }
 
-        // If we found a staff in the bank, withdraw and equip it.
         if (staffToWithdraw != -1) {
             Rs2Bank.withdrawAndEquip(staffToWithdraw);
             sleepUntil(() -> isWearingElementalStaffFor(elementalRune), 3000);
 
-            // CRITICAL FIX: After equipping, check the inventory for any other elemental staves and deposit them.
-            // This handles the case where an incorrect staff was unequipped and left in the inventory.
             for (ElementalStaff staff : ElementalStaff.values()) {
-                if (Rs2Inventory.hasItem(staff.getItemId()) && !isWearingElementalStaffFor(staff.getRune())) {
+                if (Rs2Inventory.hasItem(staff.getItemId())) {
+                    // Check if the staff in inventory is the one we just equipped. If so, don't deposit it.
+                    if (Rs2Equipment.isWearing(staff.getItemId())) continue;
+
                     Rs2Bank.depositAll(staff.getItemId());
                     sleep(200, 300);
                 }
@@ -109,7 +97,7 @@ public class JewelleryEnchantScript extends Script {
 
     private boolean isWearingElementalStaffFor(Runes rune) {
         for (ElementalStaff staff : ElementalStaff.values()) {
-            if (staff.getRune() == rune && Rs2Equipment.isWearing(staff.getItemId())) {
+            if (Rs2Equipment.isWearing(staff.getItemId()) && staff.providesRune(rune)) {
                 return true;
             }
         }

@@ -10,7 +10,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import javax.inject.Inject;
 
 @PluginDescriptor(
-        name = "Jewellery Enchant",
+        name = "<html>[&#129302;] <font color='#FFD700'>Jewellery Enchant",
         description = "Microbot plugin to enchant jewellery",
         tags = {"enchant", "magic", "jewellery", "microbot"},
         enabledByDefault = false

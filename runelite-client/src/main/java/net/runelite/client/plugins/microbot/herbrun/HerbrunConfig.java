@@ -45,6 +45,13 @@ public interface HerbrunConfig extends Config {
         return true;
     }
 
+    @ConfigSection(
+            name = "Location toggles",
+            description = "Location toggles",
+            position = 1
+    )
+    String locationSection = "Location";
+
     @ConfigItem(
             keyName = "enableTrollheim",
             name = "Enable Trollheim Patch",
@@ -101,9 +108,9 @@ public interface HerbrunConfig extends Config {
     }
 
     @ConfigItem(
-            keyName = "enableArdouge",
-            name = "Enable Ardouge Patch",
-            description = "Enable Ardouge patch in herb run",
+            keyName = "enableArdougne",
+            name = "Enable Ardougne Patch",
+            description = "Enable Ardougne patch in herb run",
             position = 6,
             section = locationSection
     )
@@ -143,22 +150,4 @@ public interface HerbrunConfig extends Config {
     default boolean enableGuild() {
         return true;
     }
-
-    //    @ConfigItem(
-//            keyName = "enableHarmony",
-//            name = "Enable Harmony Island Patch",
-//            description = "Enable Harmony Island patch in herb run",
-//            position = 9,
-//            section = locationSection
-//    )
-//    default boolean enableHarmony() {
-//        return false;
-//    }
-    @ConfigSection(
-            name = "Location toggles",
-            description = "Location toggles",
-            position = 1
-    )
-    String locationSection = "Location";
-
 }

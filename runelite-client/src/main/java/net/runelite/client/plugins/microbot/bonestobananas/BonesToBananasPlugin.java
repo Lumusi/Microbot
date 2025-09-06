@@ -11,7 +11,7 @@ import javax.inject.Inject;
 
 @PluginDescriptor(
         // The only change is right here in the 'name' field
-        name = "<html>[&#129302; <font color='#FFD700'>] Bones to Bananas</font>",
+        name = "<html>[&#129302;] <font color='#FFD700'>Bones to Bananas</font>",
         description = "Microbot script to cast Bones to Bananas",
         tags = {"magic", "skilling", "bones", "bananas", "microbot"},
         enabledByDefault = false

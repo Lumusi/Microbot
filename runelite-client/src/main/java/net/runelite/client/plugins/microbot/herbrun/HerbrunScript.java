@@ -1,17 +1,15 @@
 package net.runelite.client.plugins.microbot.herbrun;
 
 import lombok.extern.slf4j.Slf4j;
-import net.runelite.api.*;
-import net.runelite.api.gameval.ObjectID;
-import net.runelite.client.callback.ClientThread;
-import net.runelite.client.config.ConfigManager;
+import net.runelite.api.ObjectComposition;
+import net.runelite.api.TileObject;
+import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
-import net.runelite.client.plugins.microbot.questhelper.helpers.mischelpers.farmruns.FarmingHandler;
-import net.runelite.client.plugins.microbot.questhelper.helpers.mischelpers.farmruns.FarmingPatch;
-import net.runelite.client.plugins.microbot.questhelper.helpers.mischelpers.farmruns.FarmingWorld;
-import net.runelite.client.plugins.microbot.util.Rs2InventorySetup;
+import net.runelite.client.plugins.microbot.inventorysetups.InventorySetup;
+import net.runelite.client.plugins.microbot.inventorysetups.InventorySetupsItem;
 import net.runelite.client.plugins.microbot.util.bank.Rs2Bank;
+import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
@@ -19,182 +17,302 @@ import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
 import net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
-import net.runelite.client.plugins.timetracking.Tab;
-import net.runelite.client.plugins.microbot.questhelper.helpers.mischelpers.farmruns.CropState;
+import net.runelite.client.plugins.microbot.util.walker.enums.Herbs;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import javax.inject.Inject;
-
-import static net.runelite.client.plugins.microbot.Microbot.log;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class HerbrunScript extends Script {
-    @Inject
-    private ConfigManager configManager;
-    @Inject
-    private FarmingWorld farmingWorld;
-    private FarmingHandler farmingHandler;
-    private final HerbrunPlugin plugin;
-    private final HerbrunConfig config;
-    private HerbPatch currentPatch;
-    @Inject
-    ClientThread clientThread;
-    private boolean initialized = false;
 
-    @Inject
-    public HerbrunScript(HerbrunPlugin plugin, HerbrunConfig config) {
-        this.plugin = plugin;
-        this.config = config;
+    private HerbrunConfig config;
+    private List<HerbPatch> herbPatches = new ArrayList<>();
+    private HerbPatch currentPatch = null;
+
+    private enum State {
+        GEARING,
+        WALKING,
+        FARMING,
+        BANKING,
+        FINISHED
     }
 
-    private final List<HerbPatch> herbPatches = new ArrayList<>();
+    private State currentState = State.GEARING;
 
-    public boolean run() {        
+    public boolean run(HerbrunConfig config) {
+        this.config = config;
+        initializePatches();
+
         mainScheduledFuture = scheduledExecutorService.scheduleWithFixedDelay(() -> {
-            if (!Microbot.isLoggedIn()) return;
-            if (!super.run()) return;
-            if (!initialized) {
-                initialized = true;
-                HerbrunPlugin.status = "Gearing up";
-                populateHerbPatches();
-                if (herbPatches.isEmpty()) {                                        
-                    plugin.reportFinished("No herb patches ready to farm",true);
-                    this.shutdown();
-                    return;
-                }
-                var inventorySetup = new Rs2InventorySetup(config.inventorySetup(), mainScheduledFuture);
-                if (!inventorySetup.doesInventoryMatch() || !inventorySetup.doesEquipmentMatch()) {
-                    Rs2Walker.walkTo(Rs2Bank.getNearestBank().getWorldPoint(), 20);
-                    if (!inventorySetup.loadEquipment() || !inventorySetup.loadInventory()) {                        
-                        plugin.reportFinished("Failed to load inventory setup",false);
-                        return;
-                    }
-                    Rs2Bank.closeBank();
+            try {
+                if (!Microbot.isLoggedIn()) return;
+                if (!super.run()) return;
+
+                if (herbPatches.isEmpty() && currentState != State.GEARING && currentState != State.FINISHED) {
+                    currentState = State.BANKING;
                 }
 
-                log("Will visit " + herbPatches.size() + " herb patches");
-            }
-            
+                switch (currentState) {
+                    case GEARING:
+                        HerbrunPlugin.status = "Gearing up...";
+                        if (config.inventorySetup() == null) {
+                            currentState = State.WALKING;
+                            break;
+                        }
+                        if (handleGearing(config.inventorySetup())) {
+                            currentState = State.WALKING;
+                        }
+                        break;
 
-            if (Rs2Inventory.hasItem("Weeds")) {
-                Rs2Inventory.drop("Weeds");
-            }
-            if (currentPatch == null) getNextPatch();
-            if (currentPatch == null) {
-                HerbrunPlugin.status = "Finishing up";
-                if (config.goToBank()) {
-                    Rs2Walker.walkTo(Rs2Bank.getNearestBank().getWorldPoint());
-                    if (!Rs2Bank.isOpen()) Rs2Bank.openBank();
-                    Rs2Bank.depositAll();
+                    case WALKING:
+                        if (currentPatch == null) {
+                            currentPatch = getNextPatch();
+                            if (currentPatch == null) {
+                                currentState = State.BANKING;
+                                break;
+                            }
+                        }
+                        HerbrunPlugin.status = "Walking to " + currentPatch.getRegionName();
+                        if (currentPatch.isInRange(10)) {
+                            currentState = State.FARMING;
+                        } else {
+                            Rs2Walker.walkTo(currentPatch.getLocation());
+                        }
+                        break;
+                    case FARMING:
+                        HerbrunPlugin.status = "Farming " + currentPatch.getRegionName();
+                        if (handleHerbPatch()) {
+                            herbPatches.remove(currentPatch);
+                            currentPatch = null;
+                            currentState = State.WALKING;
+                        }
+                        break;
+                    case BANKING:
+                        HerbrunPlugin.status = "Banking...";
+                        if (config.goToBank()) {
+                            bankItems();
+                        }
+                        currentState = State.FINISHED;
+                        break;
+                    case FINISHED:
+                        HerbrunPlugin.status = "Finished!";
+                        shutdown();
+                        break;
                 }
-                HerbrunPlugin.status = "Finished";
-                plugin.reportFinished("Herb run finished",true);
-                this.shutdown();
-                
+            } catch (Exception e) {
+                log.error("Error in Herbrun script", e);
+                shutdown();
             }
+        }, 0, 600, TimeUnit.MILLISECONDS);
+        return true;
+    }
 
-            if (!currentPatch.isInRange(10)) {
-                HerbrunPlugin.status = "Walking to " + currentPatch.getRegionName();
-                Rs2Walker.walkTo(currentPatch.getLocation(), 20);
+    @Override
+    public void shutdown() {
+        super.shutdown();
+    }
 
+    private boolean isGearCorrect(InventorySetup setup) {
+        Map<Integer, Integer> requiredItems = new HashMap<>();
+        for (InventorySetupsItem item : setup.getInventory()) {
+            if (item.getId() != -1) {
+                requiredItems.put(item.getId(), requiredItems.getOrDefault(item.getId(), 0) + item.getQuantity());
             }
+        }
 
-            HerbrunPlugin.status = "Farming " + currentPatch.getRegionName();
-            if (handleHerbPatch()) getNextPatch();
+        // Corrected: Collect the stream to a list before iterating
+        for (Rs2ItemModel item : Rs2Inventory.items().collect(Collectors.toList())) {
+            if (requiredItems.containsKey(item.getId())) {
+                requiredItems.put(item.getId(), requiredItems.get(item.getId()) - item.getQuantity());
+            }
+        }
 
+        for (int count : requiredItems.values()) {
+            if (count > 0) return false;
+        }
 
-        }, 0, 1000, TimeUnit.MILLISECONDS);
+        for (InventorySetupsItem item : setup.getEquipment()) {
+            if (item.getId() != -1 && !Rs2Equipment.isWearing(item.getId())) {
+                return false;
+            }
+        }
 
         return true;
     }
 
-    private void populateHerbPatches() {
-        this.farmingHandler = new FarmingHandler(Microbot.getClient(), configManager);
-        herbPatches.clear();
-        clientThread.runOnClientThreadOptional(() -> {
-            for (FarmingPatch patch : farmingWorld.getTabs().get(Tab.HERB)) {
-                HerbPatch _patch = new HerbPatch(patch, config, farmingHandler);
-                if (_patch.getPrediction() != CropState.GROWING && _patch.isEnabled()) herbPatches.add(_patch);
-            }
+    private boolean handleGearing(InventorySetup setup) {
+        if (isGearCorrect(setup)) {
             return true;
-        });
+        }
+
+        for (InventorySetupsItem item : setup.getEquipment()) {
+            if (item.getId() != -1 && Rs2Inventory.hasItem(item.getId()) && !Rs2Equipment.isWearing(item.getId())) {
+                Rs2Inventory.wield(item.getId());
+                sleep(600);
+            }
+        }
+
+        if (isGearCorrect(setup)) {
+            return true;
+        }
+
+        if (!Rs2Bank.isOpen()) {
+            Rs2Bank.openBank();
+            return false;
+        }
+
+        Rs2Bank.depositAll();
+        sleep(600);
+        for (InventorySetupsItem item : setup.getInventory()) {
+            if (item.getId() != -1) {
+                Rs2Bank.withdrawX(item.getId(), item.getQuantity());
+                sleep(200);
+            }
+        }
+        for (InventorySetupsItem item : setup.getEquipment()) {
+            if (item.getId() != -1) {
+                Rs2Bank.withdrawX(item.getId(), item.getQuantity());
+                sleep(200);
+            }
+        }
+        Rs2Bank.closeBank();
+
+        return false;
     }
 
-    private void getNextPatch() {
-        if (currentPatch == null) {
-            if (herbPatches.isEmpty()) {
-                return;
-            }
+    private void initializePatches() {
+        herbPatches.clear();
+        herbPatches.add(new HerbPatch("Ardougne", Herbs.ARDOUGNE.getWorldPoint(), config.enableArdougne()));
+        herbPatches.add(new HerbPatch("Catherby", Herbs.CATHERBY.getWorldPoint(), config.enableCatherby()));
+        herbPatches.add(new HerbPatch("Civitas illa Fortis", Herbs.CIVITAS_ILLA_FORTIS.getWorldPoint(), config.enableVarlamore()));
+        herbPatches.add(new HerbPatch("Falador", Herbs.FALADOR.getWorldPoint(), config.enableFalador()));
+        herbPatches.add(new HerbPatch("Farming Guild", Herbs.FARMING_GUILD.getWorldPoint(), config.enableGuild()));
+        herbPatches.add(new HerbPatch("Kourend", Herbs.KOUREND.getWorldPoint(), config.enableHosidius()));
+        herbPatches.add(new HerbPatch("Morytania", Herbs.MORYTANIA.getWorldPoint(), config.enableMorytania()));
+        herbPatches.add(new HerbPatch("Troll Stronghold", Herbs.TROLLIEHM.getWorldPoint(), config.enableTrollheim()));
+        herbPatches.add(new HerbPatch("Weiss", Herbs.WEISS.getWorldPoint(), config.enableWeiss()));
+        herbPatches = herbPatches.stream().filter(HerbPatch::isEnabled).collect(Collectors.toList());
+    }
 
-            // Start with weiss, getNearestBank doesn't like that area!
-            currentPatch = herbPatches.stream()
-                    .filter(patch -> Objects.equals(patch.getRegionName(), "Weiss"))
-                    .findFirst()
-                    .orElseGet(() -> herbPatches.stream()
-                            .findFirst()
-                            .orElse(null));
-            herbPatches.remove(currentPatch);
-        }
+    private HerbPatch getNextPatch() {
+        WorldPoint playerLocation = Rs2Player.getWorldLocation();
+        return herbPatches.stream()
+                .min(Comparator.comparingInt(p -> p.getLocation().distanceTo(playerLocation)))
+                .orElse(null);
     }
 
     private boolean handleHerbPatch() {
         if (Rs2Inventory.isFull()) {
             Rs2NpcModel leprechaun = Rs2Npc.getNpc("Tool leprechaun");
-            if (leprechaun != null) {
-                Rs2ItemModel unNoted = Rs2Inventory.getUnNotedItem("Grimy", false);
-                Rs2Inventory.use(unNoted);
-                Rs2Npc.interact(leprechaun, "Talk-to");
-                Rs2Inventory.waitForInventoryChanges(10000);
+            if (leprechaun != null && Rs2Inventory.hasItem("grimy")) {
+                Rs2ItemModel unNotedHerb = Rs2Inventory.get("grimy");
+                if (unNotedHerb != null) {
+                    Rs2Inventory.use(unNotedHerb);
+                    Rs2Npc.interact(leprechaun, "Exchange");
+                    sleepUntil(() -> !Rs2Inventory.isFull());
+                }
             }
             return false;
         }
 
-        Integer[] ids = {
-                ObjectID.MYARM_HERBPATCH,
-                ObjectID.FARMING_HERB_PATCH_2,
-                ObjectID.FARMING_HERB_PATCH_4,
-                ObjectID.FARMING_HERB_PATCH_8,
-                ObjectID.FARMING_HERB_PATCH_6,
-                ObjectID.FARMING_HERB_PATCH_3,
-                ObjectID.FARMING_HERB_PATCH_1,
-                ObjectID.FARMING_HERB_PATCH_7,
-                ObjectID.MY2ARM_HERBPATCH,
-                ObjectID.FARMING_HERB_PATCH_5
-        };
-        var obj = Rs2GameObject.findObject(ids);
-        if (obj == null) return false;
-        var state = getHerbPatchState(obj);
-        switch (state) {
-            case "Empty":
-                Rs2Inventory.use("compost");
-                Rs2GameObject.interact(obj, "Compost");
-                Rs2Player.waitForXpDrop(Skill.FARMING);
-                Rs2Inventory.use(" seed");
-                Rs2GameObject.interact(obj, "Plant");
-                sleepUntil(() -> getHerbPatchState(obj).equals("Growing"));
-                return false;
+        if (Rs2Inventory.hasItem("Weeds")) {
+            Rs2Inventory.drop("Weeds");
+            return false;
+        }
+
+        TileObject herbPatch = findHerbPatchObject();
+        if (herbPatch == null) {
+            log.warn("Could not find herb patch at {}. Skipping.", currentPatch.getRegionName());
+            return true;
+        }
+
+        String patchState = getHerbPatchState(herbPatch);
+        log.info("Patch at {} detected state: {}", currentPatch.getRegionName(), patchState);
+
+        switch (patchState) {
             case "Harvestable":
-                Rs2GameObject.interact(obj, "Pick");
-                sleepUntil(() -> getHerbPatchState(obj).equals("Empty") || Rs2Inventory.isFull(), 20000);
+                Rs2GameObject.interact(herbPatch, "Pick");
+                sleepUntil(() -> !getHerbPatchState(herbPatch).equals("Harvestable"), 5000);
                 return false;
+
             case "Weeds":
-                Rs2GameObject.interact(obj);
-                Rs2Player.waitForAnimation(10000);
+                Rs2GameObject.interact(herbPatch, "Rake");
+                sleepUntil(() -> !getHerbPatchState(herbPatch).equals("Weeds"), 10000);
                 return false;
+
             case "Dead":
-                Rs2GameObject.interact(obj, "Clear");
-                sleepUntil(() -> getHerbPatchState(obj).equals("Empty"));
+                Rs2GameObject.interact(herbPatch, "Clear");
+                sleepUntil(() -> getHerbPatchState(herbPatch).equals("Empty"), 5000);
                 return false;
-            default:
-                currentPatch = null;
+
+            case "Empty":
+                if (!Rs2Inventory.hasItem("compost")) {
+                    log.warn("No compost left. Skipping patch.");
+                    return true;
+                }
+                Rs2Inventory.use("compost");
+                Rs2GameObject.interact(herbPatch);
+                sleepUntil(() -> getHerbPatchState(herbPatch).equals("Composted"), 3000);
+                return false;
+
+            case "Composted":
+                if (!Rs2Inventory.hasItem(" seed")) {
+                    log.warn("No seeds left. Skipping patch.");
+                    return true;
+                }
+                Rs2Inventory.use(" seed");
+                Rs2GameObject.interact(herbPatch);
+                sleepUntil(() -> getHerbPatchState(herbPatch).equals("Growing"), 5000);
                 return true;
+
+            case "Growing":
+            case "Diseased":
+                return true;
+
+            default:
+                log.warn("Unknown patch state: {}. Waiting.", patchState);
+                sleep(1000);
+                return false;
         }
     }
 
-    private static String getHerbPatchState(TileObject rs2TileObject) {
-        var game_obj = Rs2GameObject.convertToObjectComposition(rs2TileObject, true);
-        var varbitValue = Microbot.getVarbitValue(game_obj.getVarbitId());
+    private void bankItems() {
+        Rs2Walker.walkTo(Rs2Bank.getNearestBank().getWorldPoint());
+        if (!Rs2Bank.isOpen()) {
+            Rs2Bank.openBank();
+            sleepUntil(Rs2Bank::isOpen);
+        }
+        if (Rs2Bank.isOpen()) {
+            Rs2Bank.depositAll();
+            sleep(600);
+            Rs2Bank.closeBank();
+        }
+    }
+
+    private TileObject findHerbPatchObject() {
+        Integer[] ids = {
+                8150, 8151, 8152, 8153,
+                18816,
+                27111, 27113,
+                33642,
+                39151
+        };
+        return Rs2GameObject.findObject(ids);
+    }
+
+    private String getHerbPatchState(TileObject rs2TileObject) {
+        ObjectComposition game_obj = Rs2GameObject.convertToObjectComposition(rs2TileObject, true);
+        if (game_obj == null) return "Unknown";
+
+        int varbitId = game_obj.getVarbitId();
+        if (varbitId == -1) return "Unknown";
+
+        int varbitValue = Microbot.getVarbitValue(varbitId);
 
         if ((varbitValue >= 0 && varbitValue < 3) ||
                 (varbitValue >= 60 && varbitValue <= 67) ||
@@ -202,24 +320,6 @@ public class HerbrunScript extends Script {
                 (varbitValue >= 204 && varbitValue <= 219) ||
                 (varbitValue >= 221 && varbitValue <= 255)) {
             return "Weeds";
-        }
-
-        if ((varbitValue >= 4 && varbitValue <= 7) ||
-                (varbitValue >= 11 && varbitValue <= 14) ||
-                (varbitValue >= 18 && varbitValue <= 21) ||
-                (varbitValue >= 25 && varbitValue <= 28) ||
-                (varbitValue >= 32 && varbitValue <= 35) ||
-                (varbitValue >= 39 && varbitValue <= 42) ||
-                (varbitValue >= 46 && varbitValue <= 49) ||
-                (varbitValue >= 53 && varbitValue <= 56) ||
-                (varbitValue >= 68 && varbitValue <= 71) ||
-                (varbitValue >= 75 && varbitValue <= 78) ||
-                (varbitValue >= 82 && varbitValue <= 85) ||
-                (varbitValue >= 89 && varbitValue <= 92) ||
-                (varbitValue >= 96 && varbitValue <= 99) ||
-                (varbitValue >= 103 && varbitValue <= 106) ||
-                (varbitValue >= 192 && varbitValue <= 195)) {
-            return "Growing";
         }
 
         if ((varbitValue >= 8 && varbitValue <= 10) ||
@@ -250,12 +350,14 @@ public class HerbrunScript extends Script {
             return "Dead";
         }
 
-        return "Empty";
-    }
+        if (varbitValue == 4) {
+            return "Empty";
+        }
 
-    @Override
-    public void shutdown() {
-        super.shutdown();
-        initialized = false;
+        if (varbitValue == 5) {
+            return "Composted";
+        }
+
+        return "Growing";
     }
 }

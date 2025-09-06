@@ -23,7 +23,7 @@ public class HerbrunOverlay extends OverlayPanel {
         try {
             panelComponent.setPreferredSize(new Dimension(200, 300));
             panelComponent.getChildren().add(TitleComponent.builder()
-                    .text(getPlugin().getClass().getAnnotation(PluginDescriptor.class).description())
+                    .text("Microbot Herb Runner")
                     .color(Color.GREEN)
                     .build());
             panelComponent.getChildren().add(LineComponent.builder()
