@@ -146,12 +146,15 @@ public class ItemCombiner {
             currentState = State.BANKING;
             return;
         }
+
+        Script.sleep(100);
+
         if (Rs2Player.isAnimating()) {
             animationCheckCounter = 0;
         } else {
             animationCheckCounter++;
         }
-        if (animationCheckCounter >= 20) {
+        if (animationCheckCounter >= 9) {
             session.incrementInventories();
             currentState = State.BANKING;
         }

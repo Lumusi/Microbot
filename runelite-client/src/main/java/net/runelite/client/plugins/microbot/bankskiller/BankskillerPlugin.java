@@ -33,7 +33,6 @@ public class BankskillerPlugin extends Plugin {
     private BankskillerOverlay bankskillerOverlay;
 
     private BankskillerScript bankskillerScript;
-    private String selectingItemFor = null;
 
     @Provides
     BankskillerConfig provideConfig(ConfigManager configManager) {
@@ -52,7 +51,6 @@ public class BankskillerPlugin extends Plugin {
             bankskillerScript.shutdown();
         }
         overlayManager.remove(bankskillerOverlay);
-        selectingItemFor = null;
     }
 
     @Subscribe
@@ -69,37 +67,6 @@ public class BankskillerPlugin extends Plugin {
             case "stopScript":
                 bankskillerScript.shutdown();
                 break;
-            case "selectGrimyHerb":
-                selectingItemFor = "grimyHerbID";
-                Microbot.showMessage("Click a grimy herb in your inventory to select it.");
-                break;
-            case "selectItem1":
-                selectingItemFor = "itemID1";
-                Microbot.showMessage("Click an item in your inventory to set Item 1 ID.");
-                break;
-            case "selectItem2":
-                selectingItemFor = "itemID2";
-                Microbot.showMessage("Click an item in your inventory to set Item 2 ID.");
-                break;
-            case "selectItem3":
-                selectingItemFor = "itemID3";
-                Microbot.showMessage("Click an item in your inventory to set Item 3 ID.");
-                break;
-            case "selectItem4":
-                selectingItemFor = "itemID4";
-                Microbot.showMessage("Click an item in your inventory to set Item 4 ID.");
-                break;
-        }
-    }
-
-    @Subscribe
-    public void onMenuOptionClicked(MenuOptionClicked event) {
-        if (selectingItemFor == null) return;
-        if (event.getWidget() != null && event.getWidget().getParentId() == 9764864 && event.getItemId() != -1) {
-            configManager.setConfiguration(CONFIG_GROUP, selectingItemFor, event.getItemId());
-            Microbot.showMessage("Item ID set to: " + event.getItemId());
-            selectingItemFor = null;
-            event.consume();
         }
     }
 

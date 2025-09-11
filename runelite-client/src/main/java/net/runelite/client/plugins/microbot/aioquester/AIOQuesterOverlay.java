@@ -1,39 +1,46 @@
-package net.runelite.client.plugins.microbot.herbfarmrun;
+package net.runelite.client.plugins.microbot.aioquester;
 
-import net.runelite.client.plugins.microbot.Microbot;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import javax.inject.Inject;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.TitleComponent;
 
-import javax.inject.Inject;
-import java.awt.*;
+public class AIOQuesterOverlay extends OverlayPanel {
 
-public class HerbFarmRunOverlay extends OverlayPanel {
+    private final AIOQuesterConfig config;
+
     @Inject
-    HerbFarmRunOverlay(HerbFarmRunPlugin plugin)
-    {
+    AIOQuesterOverlay(AIOQuesterPlugin plugin, AIOQuesterConfig config) {
         super(plugin);
+        this.config = config;
         setPosition(OverlayPosition.TOP_LEFT);
         setNaughty();
     }
+
     @Override
     public Dimension render(Graphics2D graphics) {
         try {
             panelComponent.setPreferredSize(new Dimension(200, 300));
             panelComponent.getChildren().add(TitleComponent.builder()
-                    .text("Microbot Herb Farm Run V" + HerbFarmRunScript.version)
-                    .color(Color.GREEN)
+                    .text("Microbot AIO Quester")
+                    .color(java.awt.Color.decode("#FFD700"))
                     .build());
-
-            panelComponent.getChildren().add(LineComponent.builder().build());
 
             panelComponent.getChildren().add(LineComponent.builder()
-                    .left(Microbot.status)
+                    .left("Running Quest:")
+                    .right(config.quest().getName())
                     .build());
 
+            // New status line
+            panelComponent.getChildren().add(LineComponent.builder()
+                    .left("Status:")
+                    .right(AIOQuesterScript.status)
+                    .build());
 
-        } catch(Exception ex) {
+        } catch (Exception ex) {
             System.out.println(ex.getMessage());
         }
         return super.render(graphics);

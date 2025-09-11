@@ -13,36 +13,37 @@ import java.awt.*;
 @PluginDescriptor(
         name = "Microbot Herb Farm Run",
         description = "Microbot herb farm run plugin",
-        tags = {"herb", "farm", "microbot"},
+        tags = {"farming", "microbot", "herb run", "automation"},
         enabledByDefault = false
 )
 @Slf4j
 public class HerbFarmRunPlugin extends Plugin {
     @Inject
     private HerbFarmRunConfig config;
-    @Inject
-    private OverlayManager overlayManager;
-    @Inject
-    private HerbFarmRunOverlay herbFarmRunOverlay;
-
-    private HerbFarmRunScript herbFarmRunScript;
-
     @Provides
     HerbFarmRunConfig provideConfig(ConfigManager configManager) {
         return configManager.getConfig(HerbFarmRunConfig.class);
     }
 
+    @Inject
+    private OverlayManager overlayManager;
+    @Inject
+    private HerbFarmRunOverlay overlay;
+
+    @Inject
+    private HerbFarmRunScript script;
+
+
     @Override
     protected void startUp() throws AWTException {
         if (overlayManager != null) {
-            overlayManager.add(herbFarmRunOverlay);
+            overlayManager.add(overlay);
         }
-        herbFarmRunScript = new HerbFarmRunScript();
-        herbFarmRunScript.run(config);
+        script.run(config);
     }
 
     protected void shutDown() {
-        herbFarmRunScript.shutdown();
-        overlayManager.remove(herbFarmRunOverlay);
+        script.shutdown();
+        overlayManager.remove(overlay);
     }
 }
