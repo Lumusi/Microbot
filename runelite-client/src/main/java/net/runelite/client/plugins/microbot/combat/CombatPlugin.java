@@ -192,10 +192,11 @@ public class CombatPlugin extends Plugin {
         
         script = new CombatScript();
         
-        Microbot.runScript(script, () -> {
+        boolean started = script.run(this);
+        if (started) {
             isScriptRunning = true;
             log.info("Combat script started successfully!");
-        });
+        }
     }
 
     /**
