@@ -27,6 +27,7 @@ package net.runelite.api;
 import com.jagex.oldscape.pub.OAuthApi;
 import java.awt.Canvas;
 import java.awt.Dimension;
+import java.io.FileDescriptor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -143,8 +144,7 @@ public interface Client extends OAuthApi, GameEngine
 	void setGameState(GameState gameState);
 
 	/**
-	 * Causes the client to shutdown. It is faster than
-	 * {@link java.applet.Applet#stop()} because it doesn't wait for 4000ms.
+	 * Causes the client to shutdown.
 	 * This will call {@link System#exit} when it is done
 	 */
 	void stopNow();
@@ -536,22 +536,6 @@ public interface Client extends OAuthApi, GameEngine
 	 */
 	@Nullable
 	Widget getWidget(@Component int componentId);
-
-	/**
-	 * Gets an array containing the x-axis canvas positions
-	 * of all widgets.
-	 *
-	 * @return array of x-axis widget coordinates
-	 */
-	int[] getWidgetPositionsX();
-
-	/**
-	 * Gets an array containing the y-axis canvas positions
-	 * of all widgets.
-	 *
-	 * @return array of y-axis widget coordinates
-	 */
-	int[] getWidgetPositionsY();
 
 	/**
 	 * Gets the current run energy of the logged in player.
@@ -1573,12 +1557,12 @@ public interface Client extends OAuthApi, GameEngine
 	void runScript(Object... args);
 
 	/**
-	 * Creates a blank ScriptEvent for executing a ClientScript2 script
+	 * Creates a blank ScriptEventBuilder for building a ScriptEvent to execute a ClientScript2 script
 	 *
 	 * @param args the script id, then any additional arguments to execute the script with
 	 * @see ScriptID
 	 */
-	ScriptEvent createScriptEvent(Object ...args);
+	ScriptEventBuilder createScriptEventBuilder(Object ...args);
 
 	/**
 	 * Checks whether or not there is any active hint arrow.
@@ -1871,6 +1855,12 @@ public interface Client extends OAuthApi, GameEngine
 	 */
 	@Nullable
 	Widget getSelectedWidget();
+
+	/**
+	 * Gets the current active {@link net.runelite.api.widgets.WidgetType#INPUT_FIELD} Widget
+	 */
+	@Nullable
+	Widget getFocusedInputFieldWidget();
 
 	/**
 	 * Returns client item composition cache
@@ -2430,4 +2420,7 @@ public interface Client extends OAuthApi, GameEngine
 	 */
 	@Nonnull
 	WorldView findWorldViewFromWorldPoint(WorldPoint point);
+
+	@Nullable
+	FileDescriptor getSocketFD();
 }

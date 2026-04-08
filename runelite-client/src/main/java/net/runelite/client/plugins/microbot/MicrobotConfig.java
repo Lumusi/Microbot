@@ -20,6 +20,32 @@ public interface MicrobotConfig extends Config
 	)
 	String generalSection = "generalSection";
 
+	String keyDisableLevelUpInterface = "disableLevelUpInterface";
+	@ConfigItem(
+		keyName = keyDisableLevelUpInterface,
+		name = "Disable level-up interface",
+		description = "Automatically close the level-up interface when it appears",
+		position = 0,
+		section = generalSection
+	)
+	default boolean disableLevelUpInterface()
+	{
+		return true;
+	}
+
+	String keyDisableWorldSwitcherConfirmation = "disableWorldSwitcherConfirmation";
+	@ConfigItem(
+		keyName = keyDisableWorldSwitcherConfirmation,
+		name = "Disable world switcher confirmation",
+		description = "Automatically disable the world switcher confirmation prompt",
+		position = 1,
+		section = generalSection
+	)
+	default boolean disableWorldSwitcherConfirmation()
+	{
+		return true;
+	}
+
 	@ConfigSection(
 		name = "Logging",
 		description = "Game chat logging configuration",
@@ -95,18 +121,6 @@ public interface MicrobotConfig extends Config
 			section = loggingSection
 	)
 	default boolean enableMenuEntryLogging() {
-		return false;
-	}
-
-	String keyEnableCache = "enableRs2Cache";
-	@ConfigItem(
-			keyName = keyEnableCache,
-			name = "Enable Microbot Cache",
-			description = "This will cache ingame entities (npcs, objects,...) to improve performance",
-			position = 0,
-			section = cacheSection
-	)
-	default boolean isRs2CacheEnabled() {
 		return false;
 	}
 

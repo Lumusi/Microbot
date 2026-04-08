@@ -207,7 +207,7 @@ public class PluginManager {
                     SwingUtilities.invokeAndWait(() ->
                     {
                     runnable.run();
-                        
+
                     });
                 }
             } catch (InterruptedException | InvocationTargetException e) {
@@ -218,10 +218,17 @@ public class PluginManager {
             SplashScreen.stage(.80, 1, null, "Starting plugins", loaded, scannedPlugins.size(), false);
         }
 
-        for (Plugin plugin : plugins) {
-            ReflectUtil.queueInjectorAnnotationCacheInvalidation(plugin.injector);
-        }
-    }
+		for (Plugin plugin : plugins) {
+			try {
+				ReflectUtil.queueInjectorAnnotationCacheInvalidation(plugin.injector);
+			} catch(Exception e) {
+				log.error("Unable to start plugin {}", plugin.getClass().getSimpleName(), e);
+				activePlugins.remove(plugin);
+				remove(plugin);
+				setPluginEnabled(plugin, false);
+			}
+		}
+	}
 
     /**
      * Loads core RuneLite plugins, excluding any Microbot-related plugins.
@@ -315,13 +322,15 @@ public class PluginManager {
                 continue;
             }
 
-            if (safeMode && !pluginDescriptor.loadInSafeMode()) {
-                log.debug("Disabling {} due to safe mode", clazz);
-                // also disable the plugin from autostarting later
-                configManager.unsetConfiguration(RuneLiteConfig.GROUP_NAME,
-                        (Strings.isNullOrEmpty(pluginDescriptor.configName()) ? clazz.getSimpleName() : pluginDescriptor.configName()).toLowerCase());
-                continue;
-            }
+			if (safeMode && !pluginDescriptor.loadInSafeMode())
+			{
+				log.debug("Disabling {} due to safe mode", clazz);
+				// also disable the plugin from autostarting later
+				configManager.setConfiguration(RuneLiteConfig.GROUP_NAME,
+					(Strings.isNullOrEmpty(pluginDescriptor.configName()) ? clazz.getSimpleName() : pluginDescriptor.configName()).toLowerCase(),
+					false);
+				continue;
+			}
 
             graph.addNode((Class<Plugin>) clazz);
         }

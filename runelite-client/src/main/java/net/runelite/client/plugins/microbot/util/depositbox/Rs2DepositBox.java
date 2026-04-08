@@ -360,7 +360,15 @@ public class Rs2DepositBox {
         
         Rectangle itemBoundingBox = itemBounds(item);
         
-        Microbot.doInvoke(new NewMenuEntry(item.getSlot(), DEPOSITBOX_INVENTORY_ITEM_CONTAINER_COMPONENT_ID, action.getId(), identifier, item.getId(), option),  (itemBoundingBox == null) ? new Rectangle(1, 1) : itemBoundingBox);
+        Microbot.doInvoke(new NewMenuEntry()
+                .param0(item.getSlot())
+                .param1(DEPOSITBOX_INVENTORY_ITEM_CONTAINER_COMPONENT_ID)
+                .opcode(action.getId())
+                .identifier(identifier)
+                .itemId(item.getId())
+                .option(option)
+                ,
+                (itemBoundingBox == null) ? new Rectangle(1, 1) : itemBoundingBox);
     }
 
     /**
@@ -408,7 +416,7 @@ public class Rs2DepositBox {
      * @return the nearest {@link DepositBoxLocation}, or {@code null} if no accessible deposit box was found
      */
     public static DepositBoxLocation getNearestDepositBox() {
-        return getNearestDepositBox(Microbot.getClient().getLocalPlayer().getWorldLocation());
+        return getNearestDepositBox(Rs2Player.getWorldLocation());
     }
 
     /**
@@ -449,7 +457,7 @@ public class Rs2DepositBox {
             return null;
         }
 
-        if (Objects.equals(Microbot.getClient().getLocalPlayer().getWorldLocation(), worldPoint)) {
+        if (Objects.equals(Rs2Player.getWorldLocation(), worldPoint)) {
             List<TileObject> bankObjs = List.of(Rs2GameObject.findDepositBox(maxObjectSearchRadius));
 
             Optional<DepositBoxLocation> byObject = bankObjs.stream()
@@ -516,7 +524,7 @@ public class Rs2DepositBox {
         Rs2Player.toggleRunEnergy(true);
         Microbot.status = "Walking to nearest deposit box " + depositBoxLocation.name();
         Rs2Walker.walkTo(depositBoxLocation.getWorldPoint(), 4);
-        return depositBoxLocation.getWorldPoint().distanceTo2D(Microbot.getClient().getLocalPlayer().getWorldLocation()) <= 4;
+        return depositBoxLocation.getWorldPoint().distanceTo2D(Rs2Player.getWorldLocation()) <= 4;
     }
     
     /**
@@ -547,7 +555,7 @@ public class Rs2DepositBox {
         if (isOpen()) return true;
         Rs2Player.toggleRunEnergy(true);
         Microbot.status = "Walking to nearest deposit box " + depositBoxLocation.name();
-        boolean result = depositBoxLocation.getWorldPoint().distanceTo(Microbot.getClient().getLocalPlayer().getWorldLocation()) <= 8;
+        boolean result = depositBoxLocation.getWorldPoint().distanceTo(Rs2Player.getWorldLocation()) <= 8;
         if (result) {
             return openDepositBox();
         } else {

@@ -189,7 +189,7 @@ public class CoordinateClue extends ClueScroll implements LocationClueScroll
 		CoordinateClue.builder()
 			.itemId(ItemID.TRAIL_CLUE_MEDIUM_SEXTANT006)
 			.location(new WorldPoint(2512, 3467, 0))
-			.directions("Baxtorian Falls (Bring rope).")
+			.directionsProvider((plugin) -> "Baxtorian Falls" + getBaxtorianFallsDirections(plugin))
 			.build(),
 		CoordinateClue.builder()
 			.itemId(ItemID.TRAIL_MEDIUM_SEXTANT_EXP7)
@@ -275,6 +275,11 @@ public class CoordinateClue extends ClueScroll implements LocationClueScroll
 			.itemId(ItemID.TRAIL_MEDIUM_SEXTANT_VM01)
 			.location(new WorldPoint(1659, 3111, 0))
 			.directions("Dig west of the Bazaar in Civitas illa Fortis.")
+			.build(),
+		CoordinateClue.builder()
+			.itemId(ItemID.TRAIL_MEDIUM_SEXTANT_SAIL)
+			.location(new WorldPoint(3183, 2453, 0))
+			.directions("Center of the Great Conch (CJQ).")
 			.build(),
 		// Hard
 		CoordinateClue.builder()
@@ -593,6 +598,12 @@ public class CoordinateClue extends ClueScroll implements LocationClueScroll
 			.directions("South of Shayziens' Wall.")
 			.enemy(SARADOMIN_WIZARD)
 			.build(),
+		CoordinateClue.builder()
+			.itemId(ItemID.TRAIL_HARD_SEXTANT_SAIL)
+			.location(new WorldPoint(1193, 2774, 0))
+			.directions("On Laguna Aurorae.")
+			.enemy(SARADOMIN_WIZARD)
+			.build(),
 		// Elite
 		CoordinateClue.builder()
 			.itemId(ItemID.TRAIL_ELITE_SEXTANT_EXP5)
@@ -840,6 +851,12 @@ public class CoordinateClue extends ClueScroll implements LocationClueScroll
 			.location(new WorldPoint(1321, 3323, 0))
 			.directions("South of Custodia Pass")
 			.enemy(SARADOMIN_WIZARD)
+			.build(),
+		CoordinateClue.builder()
+			.itemId(ItemID.TRAIL_ELITE_SEXTANT_SAIL)
+			.location(new WorldPoint(2081, 3184, 0))
+			.directions("On Lledrith Island")
+			.enemy(ARMADYLEAN_OR_BANDOSIAN_GUARD)
 			.build(),
 		// Master
 		CoordinateClue.builder()
@@ -1166,5 +1183,14 @@ public class CoordinateClue extends ClueScroll implements LocationClueScroll
 		}
 
 		return " An entry fee of 100 trading sticks is required.";
+	}
+
+	private static String getBaxtorianFallsDirections(ClueScrollPlugin plugin)
+	{
+		if (plugin.getClient().getVarbitValue(VarbitID.KANDARIN_DIARY_MEDIUM_COMPLETE) == 1)
+		{
+			return "";
+		}
+		return " (Bring rope)";
 	}
 }

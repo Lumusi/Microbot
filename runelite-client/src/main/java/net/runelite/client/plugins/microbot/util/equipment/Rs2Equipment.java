@@ -23,7 +23,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 public class Rs2Equipment {
-    private static List<Rs2ItemModel> equipmentItems = Collections.emptyList();
+    private static volatile List<Rs2ItemModel> equipmentItems = Collections.emptyList();
 
     public static ItemContainer equipment() {
         return Microbot.getClient().getItemContainer(InventoryID.WORN);
@@ -319,7 +319,7 @@ public class Rs2Equipment {
             identifier = -1;
             List<String> actions = rs2Item.getEquipmentActions();
             for (int i = 0; i < actions.size(); i++) {
-                if (action.equalsIgnoreCase(actions.get(i))) {
+                if (actions.get(i).toLowerCase().contains(action.toLowerCase())) {
                     identifier = i + 2;
                     break;
                 }
@@ -376,7 +376,15 @@ public class Rs2Equipment {
             rectangle = getSafeBounds(InterfaceID.WORNITEMS,24);
         }
 
-        Microbot.doInvoke(new NewMenuEntry(param0, param1, menuAction.getId(), identifier, -1, rs2Item.getName()), rectangle);
+        Microbot.doInvoke(new NewMenuEntry()
+                .param0(param0)
+                .param1(param1)
+                .opcode(menuAction.getId())
+                .identifier(identifier)
+                .itemId(-1)
+                .target(rs2Item.getName())
+                ,
+                rectangle);
         //Rs2Reflection.invokeMenu(param0, param1, menuAction.getId(), identifier, rs2Item.id, action, target, -1, -1);
     }
 

@@ -170,7 +170,16 @@ public class Rs2Magic {
         if (magicSpell.getWidgetId() == -1)
             throw new NotImplementedException("This spell has not been configured yet in the MagicAction.java class");
 
-        Microbot.doInvoke(new NewMenuEntry(option, -1, magicSpell.getWidgetId(), menuAction.getId(), identifier, -1, magicSpell.getName()), new Rectangle(Rs2Widget.getWidget(magicSpell.getWidgetId()).getBounds()));
+        Microbot.doInvoke(new NewMenuEntry()
+                .option(option)
+                .param0(-1)
+                .param1(magicSpell.getWidgetId())
+                .opcode(menuAction.getId())
+                .identifier(identifier)
+                .itemId(-1)
+                .target(magicSpell.getName())
+                ,
+                new Rectangle(Rs2Widget.getWidget(magicSpell.getWidgetId()).getBounds()));
         //Rs2Reflection.invokeMenu(-1, magicSpell.getWidgetId(), menuAction.getId(), 1, -1, "Cast", "<col=00ff00>" + magicSpell.getName() + "</col>", -1, -1);
         return true;
     }
@@ -271,18 +280,12 @@ public class Rs2Magic {
 
     private static void highAlch(Rs2ItemModel item, int sleepMin, int sleepMax) {
         if (!setup()) return;
-
-        final Widget highAlch = Rs2Widget.findWidget(MagicAction.HIGH_LEVEL_ALCHEMY.getName());
-        if (highAlch.getSpriteId() != 41) return;
-        alch(highAlch, item, sleepMin, sleepMax);
+        alch(MagicAction.HIGH_LEVEL_ALCHEMY, item, sleepMin, sleepMax);
     }
 
     private static void lowAlch(Rs2ItemModel item, int sleepMin, int sleepMax) {
         if (!setup()) return;
-
-        Widget lowAlch = Rs2Widget.findWidget(MagicAction.LOW_LEVEL_ALCHEMY.getName());
-        if (lowAlch.getSpriteId() != 25) return;
-        alch(lowAlch, item, sleepMin, sleepMax);
+        alch(MagicAction.LOW_LEVEL_ALCHEMY, item, sleepMin, sleepMax);
     }
 
     private static void interact(Rs2ItemModel item, Point point, String info) {
@@ -295,12 +298,14 @@ public class Rs2Magic {
         }
     }
 
-    private static void alch(Widget alch, Rs2ItemModel item, int sleepMin, int sleepMax) {
-        if (alch == null) return;
-        Point point = new Point((int) alch.getBounds().getCenterX(), (int) alch.getBounds().getCenterY());
+    private static void alch(MagicAction magicSpell, Rs2ItemModel item, int sleepMin, int sleepMax) {
+        final Widget spellWidget = Rs2Widget.getWidget(magicSpell.getWidgetId());
+        if (spellWidget == null) return;
+
+        final Point point = new Point((int) spellWidget.getBounds().getCenterX(), (int) spellWidget.getBounds().getCenterY());
         sleepUntil(() -> Microbot.getClientThread().runOnClientThreadOptional(() -> Rs2Tab.getCurrentTab() == InterfaceTab.MAGIC).orElse(false), 5000);
         sleep(sleepMin, sleepMax);
-        Microbot.getMouse().click(point);
+        if (!cast(magicSpell)) return;
         sleepUntil(() -> Microbot.getClientThread().runOnClientThreadOptional(() -> Rs2Tab.getCurrentTab() == InterfaceTab.INVENTORY).orElse(false), 5000);
         sleep(sleepMin, sleepMax);
         interact(item, point, "Alching");

@@ -25,7 +25,8 @@ import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
 import net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.security.Encryption;
-import net.runelite.client.plugins.microbot.util.security.Login;
+import net.runelite.client.plugins.microbot.util.security.LoginManager;
+import net.runelite.client.config.ConfigProfile;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 import org.apache.commons.lang3.tuple.Pair;
@@ -102,7 +103,7 @@ public class Rs2GrandExchange {
      * @return
      */
     public static boolean isOfferScreenOpen() {
-        return Rs2Widget.isWidgetVisible(InterfaceID.GE_OFFERS, 23);
+        return Rs2Widget.isWidgetVisible(InterfaceID.GE_OFFERS, 15);
     }
 
     /**
@@ -125,11 +126,18 @@ public class Rs2GrandExchange {
             }
             Rs2Npc.interact(npc, "exchange");
             if (Rs2Bank.isBankPinWidgetVisible()) {
-                if ((Login.activeProfile.getBankPin() == null || Login.activeProfile.getBankPin().isEmpty()) || Login.activeProfile.getBankPin().equalsIgnoreCase("**bankpin**")) {
+                ConfigProfile activeProfile = LoginManager.getActiveProfile();
+                if (activeProfile == null) {
+                    log.warn("No active profile configured for bank pin entry");
                     return false;
                 }
 
-                Rs2Bank.handleBankPin(Encryption.decrypt(Login.activeProfile.getBankPin()));
+                String encryptedPin = activeProfile.getBankPin();
+                if ((encryptedPin == null || encryptedPin.isEmpty()) || encryptedPin.equalsIgnoreCase("**bankpin**")) {
+                    return false;
+                }
+
+                Rs2Bank.handleBankPin(Encryption.decrypt(encryptedPin));
             }
             return sleepUntil(Rs2GrandExchange::isOpen, 5000);
         } catch (Exception ex) {
@@ -200,7 +208,7 @@ public class Rs2GrandExchange {
                 sleepUntil(GrandExchangeWidget::isOfferTextVisible);
 
 
-                Rs2Widget.sleepUntilHasWidgetText("Start typing the name of an item to search for it", 162, 51, false, 5000);
+                Rs2Widget.sleepUntilHasWidgetText("Start typing the name of an item to search for it", 162, 52, false, 5000);
 
                 String searchName = request.getItemName();
                 boolean itemMatchedWithPreviousSearch = isPreviousSearchMatch(request.getItemName());
@@ -271,7 +279,7 @@ public class Rs2GrandExchange {
         }
         Rs2Keyboard.typeString(request.getItemName());
 
-        if (!Rs2Widget.sleepUntilHasWidgetText(searchName, 162, 43, false, 5000)) return true;
+        if (!Rs2Widget.sleepUntilHasWidgetText(searchName, 162, 44, false, 5000)) return true;
 
         sleepUntil(() -> getSearchResultWidget(request.getItemName(), request.isExact()) != null, 2200);
 
@@ -357,7 +365,15 @@ public class Rs2GrandExchange {
             return;
         }
         // MenuEntryImpl(getOption=View offer, getTarget=, getIdentifier=1, getType=CC_OP, getParam0=2, getParam1=30474247, getItemId=-1, isForceLeftClick=false, getWorldViewId=-1, isDeprioritized=false)
-        NewMenuEntry menuEntry = new NewMenuEntry("View offer", "", 1, MenuAction.CC_OP, 2, widget.getId(), false);
+        NewMenuEntry menuEntry = new NewMenuEntry()
+                .option("View offer")
+                .target("")
+                .identifier(1)
+                .type(MenuAction.CC_OP)
+                .param0(2)
+                .param1(widget.getId())
+                .itemId(-1)
+                .forceLeftClick(false);
         Rectangle bounds = widget.getBounds();
         Microbot.doInvoke(menuEntry, bounds);
     }
@@ -417,7 +433,17 @@ public class Rs2GrandExchange {
                 desiredAction = toBank ? "Bank" : "Collect";
             }
             param0 = i == 0 ? 2 : 3;
-            NewMenuEntry menuEntry = new NewMenuEntry(desiredAction, "", identifier, MenuAction.CC_OP, param0, child.getId(), false);
+
+            NewMenuEntry menuEntry = new NewMenuEntry()
+                    .option(desiredAction)
+                    .target("")
+                    .identifier(identifier)
+                    .type(MenuAction.CC_OP)
+                    .param0(param0)
+                    .param1(child.getId())
+                    .itemId(child.getItemId())
+                    .forceLeftClick(false);
+
             Rectangle bounds = child.getBounds() != null && Rs2UiHelper.isRectangleWithinCanvas(child.getBounds()) ? child.getBounds() : Rs2UiHelper.getDefaultRectangle();
             Microbot.doInvoke(menuEntry, bounds);
             if (!Rs2AntibanSettings.naturalMouse) {
@@ -483,7 +509,15 @@ public class Rs2GrandExchange {
                 } else {
 //					MenuEntryImpl(getOption=Customise, getTarget=, getIdentifier=2, getType=CC_OP, getParam0=14, getParam1=30474266, getItemId=-1, isForceLeftClick=false, getWorldViewId=-1, isDeprioritized=false)
 //					MenuEntryImpl(getOption=Customise, getTarget=, getIdentifier=2, getType=CC_OP, getParam0=15, getParam1=30474266, getItemId=-1, isForceLeftClick=false, getWorldViewId=-1, isDeprioritized=false)
-                    NewMenuEntry menuEntry = new NewMenuEntry("Customise", "", 2, MenuAction.CC_OP, isIncrease ? 15 : 14, adjustXWidget.getId(), false);
+                    NewMenuEntry menuEntry = new NewMenuEntry()
+                            .option("Customise")
+                            .target("")
+                            .identifier(2)
+                            .type(MenuAction.CC_OP)
+                            .param0(isIncrease ? 15 : 14)
+                            .param1(adjustXWidget.getId())
+                            .itemId(-1)
+                            .forceLeftClick(false);
                     Rectangle bounds = adjustXWidget.getBounds() != null && Rs2UiHelper.isRectangleWithinCanvas(adjustXWidget.getBounds()) ? adjustXWidget.getBounds() : Rs2UiHelper.getDefaultRectangle();
                     Microbot.doInvoke(menuEntry, bounds);
                 }
@@ -657,7 +691,15 @@ public class Rs2GrandExchange {
         }
         // MenuEntryImpl(getOption=Collect to bank, getTarget=, getIdentifier=2, getType=CC_OP, getParam0=0, getParam1=30474246, getItemId=-1, isForceLeftClick=false, getWorldViewId=-1, isDeprioritized=false)
         // MenuEntryImpl(getOption=Collect to inventory, getTarget=, getIdentifier=1, getType=CC_OP, getParam0=0, getParam1=30474246, getItemId=-1, isForceLeftClick=false, getWorldViewId=-1, isDeprioritized=false)
-        NewMenuEntry entry = new NewMenuEntry(collectToBank ? "Collect to bank" : "Collect to inventory", "", collectToBank ? 2 : 1, MenuAction.CC_OP, 0, collectButton.getId(), false);
+        NewMenuEntry entry = new NewMenuEntry()
+                .option(collectToBank ? "Collect to bank" : "Collect to inventory")
+                .target("")
+                .identifier(collectToBank ? 2 : 1)
+                .type(MenuAction.CC_OP)
+                .param0(0)
+                .param1(collectButton.getId())
+                .itemId(-1)
+                .forceLeftClick(false);
         Rectangle bounds = collectButton.getBounds() != null && Rs2UiHelper.isRectangleWithinCanvas(collectButton.getBounds())
                 ? collectButton.getBounds()
                 : Rs2UiHelper.getDefaultRectangle();
@@ -779,7 +821,15 @@ public class Rs2GrandExchange {
         }
 
         Widget parent = GrandExchangeWidget.getSlot(matchingSlot.get());
-        NewMenuEntry menuEntry = new NewMenuEntry("Abort offer", "", 2, MenuAction.CC_OP, 2, parent.getId(), false);
+        NewMenuEntry menuEntry = new NewMenuEntry()
+                .option("Abort offer")
+                .target("")
+                .identifier(2)
+                .type(MenuAction.CC_OP)
+                .param0(2)
+                .param1(parent.getId())
+                .itemId(-1)
+                .forceLeftClick(false);
         Rectangle bounds = parent.getBounds() != null && Rs2UiHelper.isRectangleWithinCanvas(parent.getBounds())
                 ? parent.getBounds()
                 : Rs2UiHelper.getDefaultRectangle();
@@ -808,7 +858,15 @@ public class Rs2GrandExchange {
                 })
                 .forEach(slot -> {
                     Widget parent = GrandExchangeWidget.getSlot(slot);
-                    NewMenuEntry menuEntry = new NewMenuEntry("Abort offer", "", 2, MenuAction.CC_OP, 2, parent.getId(), false);
+                    NewMenuEntry menuEntry = new NewMenuEntry()
+                            .option("Abort offer")
+                            .target("")
+                            .identifier(2)
+                            .type(MenuAction.CC_OP)
+                            .param0(2)
+                            .param1(parent.getId())
+                            .itemId(-1)
+                            .forceLeftClick(false);
                     Rectangle bounds = parent.getBounds() != null && Rs2UiHelper.isRectangleWithinCanvas(parent.getBounds())
                             ? parent.getBounds()
                             : Rs2UiHelper.getDefaultRectangle();
@@ -1883,7 +1941,15 @@ public class Rs2GrandExchange {
                     Widget parent = GrandExchangeWidget.getSlot(slot);
                     if (parent != null && !isSlotAvailable(slot)) {
                         // Cancel this specific offer
-                        NewMenuEntry menuEntry = new NewMenuEntry("Abort offer", "", 2, MenuAction.CC_OP, 2, parent.getId(), false);
+                        NewMenuEntry menuEntry = new NewMenuEntry()
+                                .option("Abort offer")
+                                .target("")
+                                .identifier(2)
+                                .type(MenuAction.CC_OP)
+                                .param0(2)
+                                .param1(parent.getId())
+                                .itemId(-1)
+                                .forceLeftClick(false);
                         Rectangle bounds = parent.getBounds() != null && Rs2UiHelper.isRectangleWithinCanvas(parent.getBounds())
                                 ? parent.getBounds()
                                 : Rs2UiHelper.getDefaultRectangle();

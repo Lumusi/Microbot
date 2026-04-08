@@ -85,20 +85,32 @@ public class Rs2RunePouch
 	 *
 	 * @param ev The varbit changed event.
 	 */
-	public static void onVarbitChanged(VarbitChanged ev) {
-		assert Microbot.getClient().isClientThread();
+    public static void onVarbitChanged(VarbitChanged ev) {
+        assert Microbot.getClient().isClientThread();
 
-		for (int i = 0; i < NUM_SLOTS; i++) {
-			if (ev.getVarbitId() == RUNE_VARBITS[i]) {
-				slots.get(i).setRune(Runes.byVarbitId(ev.getValue()));
-				break;
-			}
-			if (ev.getVarbitId() == AMOUNT_VARBITS[i]) {
-				slots.get(i).setQuantity(ev.getValue());
-				break;
-			}
-		}
-	}
+        for (int i = 0; i < NUM_SLOTS; i++) {
+            if (i >= slots.size()) {
+                break; // avoid index out of bounds
+            }
+
+            PouchSlot slot = slots.get(i);
+            if (slot == null) {
+                continue; // skip null entries
+            }
+
+            int varbitId = ev.getVarbitId();
+            int value = ev.getValue();
+
+            if (varbitId == RUNE_VARBITS[i]) {
+                slot.setRune(Runes.byVarbitId(value));
+                break;
+            }
+            if (varbitId == AMOUNT_VARBITS[i]) {
+                slot.setQuantity(value);
+                break;
+            }
+        }
+    }
 
 	/**
 	 * Handles reading rune pouch loadouts from the bank interface widgets.
@@ -445,7 +457,14 @@ public class Rs2RunePouch
 					break;
 				}
 				Rectangle loadBounds = loadWidget.getBounds();
-				NewMenuEntry menuEntry = new NewMenuEntry("Load", "", 1, MenuAction.CC_OP, -1, loadWidget.getId(), false);
+				NewMenuEntry menuEntry = new NewMenuEntry()
+						.option("Load")
+						.target("")
+						.identifier(1)
+						.type(MenuAction.CC_OP)
+						.itemId(-1)
+						.param1(loadWidget.getId())
+						.forceLeftClick(false);
 				Microbot.doInvoke(menuEntry, loadBounds != null && Rs2UiHelper.isRectangleWithinCanvas(loadBounds) ? loadBounds : Rs2UiHelper.getDefaultRectangle());
 				Global.sleepUntil(() -> getRunes().entrySet().stream().allMatch(e -> requiredRunes.getOrDefault(e.getKey(), 0) <= e.getValue()));
 				return closeRunePouch();

@@ -3,14 +3,13 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
-import net.runelite.client.plugins.microbot.pluginscheduler.util.SchedulerPluginUtil;
 import net.runelite.client.plugins.microbot.util.antiban.Rs2AntibanSettings;
 import net.runelite.client.plugins.microbot.util.discord.Rs2Discord;
 import net.runelite.client.plugins.microbot.util.events.PluginPauseEvent;
 import net.runelite.client.plugins.microbot.util.math.Rs2Random;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.player.Rs2PlayerModel;
-import net.runelite.client.plugins.microbot.util.security.Login;
+import net.runelite.client.plugins.microbot.util.security.LoginManager;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.world.Rs2WorldUtil;
 import net.runelite.client.ui.ClientUI;
@@ -456,6 +455,8 @@ public class BreakHandlerScript extends Script {
             if (breakDuration <= 0 || config.breakEndNow()){
                 // Reset state to waiting for break if logged in unexpectedly
                 transitionToState(BreakHandlerState.BREAK_ENDING);
+            } else {
+                resetBreakState();
             }
         }
     }
@@ -465,9 +466,10 @@ public class BreakHandlerScript extends Script {
      * In micro break state (no logout), waiting for duration to complete.
      */
     private void handleLoginBreakActiveState() {
-        // Check if micro break should end
-        if ((breakDuration <= 0 && !Rs2AntibanSettings.microBreakActive) || config.breakEndNow()) {
-            log.debug("Micro break completed");
+        // Check if in-game break (micro break or no-logout break) should end
+        if (breakDuration <= 0 || config.breakEndNow()) {
+            String breakType = Rs2AntibanSettings.microBreakActive ? "Micro break" : "In-game break";
+            log.debug("{} completed", breakType);
             transitionToState(BreakHandlerState.BREAK_ENDING);
         }
     }
@@ -555,14 +557,20 @@ public class BreakHandlerScript extends Script {
         
             
             // perform login attempt
+            boolean loginInitiated;
             if (targetWorld != -1) {
                 log.info("Attempting login to selected world: {}", targetWorld);
-                new Login(targetWorld);
+                loginInitiated = LoginManager.login(targetWorld);
             } else {
                 log.info("Using default login (current world or last used)");
-                new Login();
+                loginInitiated = LoginManager.login();
             }
-            
+
+            if (!loginInitiated) {
+                log.debug("Login manager rejected new attempt (gameState: {}, attemptActive: {})",
+                    LoginManager.getGameState(), LoginManager.isLoginAttemptActive());
+            }
+
             // immediately transition to logging in state to prevent multiple login instances
             transitionToState(BreakHandlerState.LOGGING_IN);
             
@@ -892,7 +900,7 @@ public class BreakHandlerScript extends Script {
      * This includes both the manual lock state and any locked conditions from schedulable plugins.
      */
     public static boolean isLockState() {
-        return lockState.get() || SchedulerPluginUtil.hasLockedSchedulablePlugins();
+        return lockState.get();
     }
     
     /**

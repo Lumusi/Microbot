@@ -246,6 +246,39 @@ public interface ShortestPathConfig extends Config {
     }
 
     @ConfigItem(
+            keyName = "useHotAirBalloons",
+            name = "Use Hot Air Balloons",
+            description = "Whether to include hot air balloons in the path.",
+            position = 19,
+            section = sectionSettings
+    )
+    default boolean useHotAirBalloons() {
+        return false;
+    }
+
+    @ConfigItem(
+            keyName = "useMagicMushtrees",
+            name = "Use Magic Mushtrees",
+            description = "Whether to include magic mushtrees in the path.",
+            position = 19,
+            section = sectionSettings
+    )
+    default boolean useMagicMushtrees() {
+        return true;
+    }
+
+    @ConfigItem(
+            keyName = "useSeasonalTransports",
+            name = "Use Seasonal Transports",
+            description = "Whether to include seasonal transports (e.g. clue compass) in the path.",
+            position = 19,
+            section = sectionSettings
+    )
+    default boolean useSeasonalTransports() {
+        return false;
+    }
+
+    @ConfigItem(
             keyName = "usePoh",
             name = "Use Player-owned-house Teleports",
             description = "Whether to include teleportation through the PoH",
@@ -624,4 +657,67 @@ public interface ShortestPathConfig extends Config {
     default int maxSimilarTransportDistance() {
         return 0;
     }
+
+	@ConfigSection(
+			name = "Spirit tree teleports",
+			description = "Toggle which spirit tree destinations to use",
+			position = 5,
+			closedByDefault = true
+	)
+	String sectionSpiritTrees = "sectionSpiritTrees";
+
+	@ConfigItem(
+			keyName = "spiritTreeEtceteria",
+			name = "Etceteria",
+			description = "Use the spirit tree teleport to Etceteria",
+			position = 0,
+			section = sectionSpiritTrees
+	)
+	default boolean spiritTreeEtceteria() {
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = "spiritTreeBrimhaven",
+			name = "Brimhaven",
+			description = "Use the spirit tree teleport to Brimhaven",
+			position = 1,
+			section = sectionSpiritTrees
+	)
+	default boolean spiritTreeBrimhaven() {
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = "spiritTreePortSarim",
+			name = "Port Sarim",
+			description = "Use the spirit tree teleport to Port Sarim",
+			position = 2,
+			section = sectionSpiritTrees
+	)
+	default boolean spiritTreePortSarim() {
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = "spiritTreeHosidius",
+			name = "Hosidius",
+			description = "Use the spirit tree teleport to Hosidius",
+			position = 3,
+			section = sectionSpiritTrees
+	)
+	default boolean spiritTreeHosidius() {
+		return true;
+	}
+
+	@ConfigItem(
+			keyName = "spiritTreeFarmingGuild",
+			name = "Farming Guild",
+			description = "Use the spirit tree teleport to the Farming Guild",
+			position = 4,
+			section = sectionSpiritTrees
+	)
+	default boolean spiritTreeFarmingGuild() {
+		return true;
+	}
 }

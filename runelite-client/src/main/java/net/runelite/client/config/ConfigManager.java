@@ -47,7 +47,7 @@ import net.runelite.client.events.*;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.inventorysetups.ConfigInventorySetupDataManager;
 import net.runelite.client.plugins.microbot.inventorysetups.InventorySetup;
-import net.runelite.client.plugins.microbot.util.security.Login;
+import net.runelite.client.plugins.microbot.util.security.LoginManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.RunnableExceptionLogger;
 import net.runelite.http.api.config.ConfigPatch;
@@ -145,7 +145,7 @@ public class ConfigManager
 
 	public void switchProfile(ConfigProfile newProfile)
 	{
-		Login.activeProfile = newProfile;
+		LoginManager.setActiveProfile(newProfile);
 
 		if (newProfile.getId() == profile.getId())
 		{
@@ -355,6 +355,25 @@ public class ConfigManager
 			// Update the discordWebhookUrl only if it's changed
 			if (!Objects.equals(profile.getDiscordWebhookUrl(), discordWebhookUrl)) {
 				profile.setDiscordWebhookUrl(discordWebhookUrl);
+				lock.dirty();
+			}
+		}
+	}
+
+	public void setSelectedWorld(ConfigProfile profile, Integer selectedWorld) {
+		// Flush pending config changes first in case the profile being
+		// synced is the active profile.
+		sendConfig();
+
+		try (ProfileManager.Lock lock = profileManager.lock()) {
+			profile = lock.findProfile(profile.getId());
+			if (profile == null) {
+				return;
+			}
+
+			// Update the selectedWorld only if it's changed
+			if (!Objects.equals(profile.getSelectedWorld(), selectedWorld)) {
+				profile.setSelectedWorld(selectedWorld);
 				lock.dirty();
 			}
 		}
@@ -724,7 +743,7 @@ public class ConfigManager
 				log.info("Creating profile: {} ({})", profile.getName(), profile.getId());
 			}
 
-			// synced profile need to be fetched if outdated
+			// synced profautoogile need to be fetched if outdated
 			syncRemote(lock, profile, remoteProfiles);
 
 			this.profile = profile;

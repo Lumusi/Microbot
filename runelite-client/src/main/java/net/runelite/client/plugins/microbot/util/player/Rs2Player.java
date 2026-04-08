@@ -13,21 +13,23 @@ import net.runelite.api.kit.KitType;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.plugins.microbot.Microbot;
+import net.runelite.client.plugins.microbot.api.boat.Rs2BoatCache;
 import net.runelite.client.plugins.microbot.globval.enums.InterfaceTab;
-import net.runelite.client.plugins.microbot.util.cache.Rs2QuestCache;
+import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
 import net.runelite.client.plugins.microbot.util.coords.Rs2WorldPoint;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.gameobject.Rs2GameObject;
 import net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
+import net.runelite.client.plugins.microbot.util.keyboard.Rs2Keyboard;
 import net.runelite.client.plugins.microbot.util.math.Rs2Random;
 import net.runelite.client.plugins.microbot.util.menu.NewMenuEntry;
 import net.runelite.client.plugins.microbot.util.misc.Rs2Food;
 import net.runelite.client.plugins.microbot.util.misc.Rs2Potion;
 import net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper;
 import net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel;
-import net.runelite.client.plugins.microbot.util.security.Login;
+import net.runelite.client.plugins.microbot.util.security.LoginManager;
 import net.runelite.client.plugins.microbot.util.tabs.Rs2Tab;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
@@ -441,15 +443,30 @@ public class Rs2Player {
     public static void logout() {
         if (!Microbot.isLoggedIn()) return;
 
+        // Make sure jagex acount does not auto login
+        Rs2Keyboard.resetEnter();
+
         Rs2Tab.switchTo(InterfaceTab.LOGOUT);
 
         Widget currentWorldWidget = Rs2Widget.getWidget(69, 3);
         if (currentWorldWidget != null) {
             // From World Switcher
-            Microbot.doInvoke(new NewMenuEntry(-1, 4522009, CC_OP.getId(), 1, -1, "Logout"), new Rectangle(1, 1, Microbot.getClient().getCanvasWidth(), Microbot.getClient().getCanvasHeight()));
+            Microbot.doInvoke(new NewMenuEntry()
+                    .param0(-1)
+                    .param1(4522009)
+                    .opcode(CC_OP.getId())
+                    .identifier(1)
+                    .itemId(-1)
+                    .option("Logout"), new Rectangle(1, 1, Microbot.getClient().getCanvasWidth(), Microbot.getClient().getCanvasHeight()));
         } else {
             // From red logout button
-            Microbot.doInvoke(new NewMenuEntry(-1, 11927560, CC_OP.getId(), 1, -1, "Logout"), new Rectangle(1, 1, Microbot.getClient().getCanvasWidth(), Microbot.getClient().getCanvasHeight()));
+            Microbot.doInvoke(new NewMenuEntry()
+                    .param0(-1)
+                    .param1(11927560)
+                    .opcode(CC_OP.getId())
+                    .identifier(1)
+                    .itemId(-1)
+                    .option("Logout"), new Rectangle(1, 1, Microbot.getClient().getCanvasWidth(), Microbot.getClient().getCanvasHeight()));
         }
     }
 
@@ -555,13 +572,13 @@ public class Rs2Player {
             for (Rs2PlayerModel player : players) {
                 long detectionTime = playerDetectionTimes.getOrDefault(player.getId(), 0L);
                 if (currentTime - detectionTime >= time) {
-                    int randomWorld = Login.getRandomWorld(isMember());
+                    int randomWorld = LoginManager.getRandomWorld(isMember());
                     Microbot.hopToWorld(randomWorld);
                     return true;
                 }
             }
         } else if (players.size() >= amountOfPlayers) {
-            int randomWorld = Login.getRandomWorld(isMember());
+            int randomWorld = LoginManager.getRandomWorld(isMember());
             Microbot.hopToWorld(randomWorld);
             return true;
         }
@@ -667,6 +684,7 @@ public class Rs2Player {
      * @param predicate A condition to filter players (optional).
      * @return A stream of Rs2PlayerModel objects representing nearby players.
      */
+    @Deprecated(since = "2.1.0 - Use Rs2PlayerCache/Rs2PlayerQueryable", forRemoval = true)
     public static Stream<Rs2PlayerModel> getPlayers(Predicate<Rs2PlayerModel> predicate) {
         return getPlayers(predicate, false);
     }
@@ -678,6 +696,7 @@ public class Rs2Player {
      * @param includeLocalPlayer a flag on whether to include the local player within the stream
      * @return A stream of Rs2PlayerModel objects representing nearby players.
      */
+    @Deprecated(since = "2.1.0 - Use Rs2PlayerCache/Rs2PlayerQueryable", forRemoval = true)
     public static Stream<Rs2PlayerModel> getPlayers(Predicate<Rs2PlayerModel> predicate, boolean includeLocalPlayer) {
         List<Rs2PlayerModel> players = Optional.of(Microbot.getClient().getTopLevelWorldView().players()
                         .stream()
@@ -699,6 +718,7 @@ public class Rs2Player {
      *                   If {@code false}, checks if the player name contains the given string.
      * @return The first matching {@code Rs2PlayerModel}, or {@code null} if no player is found.
      */
+    @Deprecated(since = "2.1.0 - Use Rs2PlayerCache/Rs2PlayerQueryable", forRemoval = true)
     public static Rs2PlayerModel getPlayer(String playerName, boolean exact) {
         return getPlayers(player -> {
             String name = player.getName();
@@ -714,6 +734,7 @@ public class Rs2Player {
      * @return The first matching {@code Rs2PlayerModel}, or {@code null} if no player is found.
      *         Uses {@code getPlayer(playerName, false)} to perform a case-insensitive partial match.
      */
+    @Deprecated(since = "2.1.0 - Use Rs2PlayerCache/Rs2PlayerQueryable", forRemoval = true)
     public static Rs2PlayerModel getPlayer(String playerName) {
         return getPlayer(playerName, false);
     }
@@ -723,6 +744,7 @@ public class Rs2Player {
      *
      * @return a list of players that are in combat
      */
+    @Deprecated(since = "2.1.0 - Use Rs2PlayerCache/Rs2PlayerQueryable", forRemoval = true)
     public static List<Rs2PlayerModel> getPlayersInCombat() {
         return getPlayers(player -> player.getHealthRatio() != -1).collect(Collectors.toList());
     }
@@ -932,26 +954,59 @@ public class Rs2Player {
         });
     }
 
-    /**
-     * Retrieves the player's current world location as a {@link WorldPoint}.
-     *
-     * <p>If the player is in an instanced world, the method converts the local position 
-     * to an instanced {@link WorldPoint}. Otherwise, it returns the player's standard 
-     * world location.</p>
-     *
-     * @return The {@link WorldPoint} representing the player's current location.
-     */
-    public static WorldPoint getWorldLocation() {
-        if (Microbot.getClient().getTopLevelWorldView().getScene().isInstance()) {
-            LocalPoint l = LocalPoint.fromWorld(Microbot.getClient().getTopLevelWorldView(), Microbot.getClient().getLocalPlayer().getWorldLocation());
-            return WorldPoint.fromLocalInstance(Microbot.getClient(), l);
-        } else {
-            if (Microbot.getClient().getLocalPlayer() == null) {
-                return null; // Handle case where local player is not available
-            }
-            return Microbot.getClient().getLocalPlayer().getWorldLocation();
-        }
-    }
+	/**
+	 * Retrieves the player's current world location as a {@link WorldPoint} from the client thread.
+	 *
+	 * <p>If the player is in an instanced world, the method converts the local position
+	 * to an instanced {@link WorldPoint}. Otherwise, it returns the player's standard
+	 * world location.</p>
+	 *
+	 * @return The {@link WorldPoint} representing the player's current location, or {@code null} if unavailable.
+	 */
+	public static WorldPoint getWorldLocation_Internal(){
+		return Microbot.getClientThread().runOnClientThreadOptional(() -> {
+			if (Microbot.getClient().getTopLevelWorldView().getScene().isInstance()) {
+				LocalPoint l = LocalPoint.fromWorld(Microbot.getClient().getTopLevelWorldView(), Microbot.getClient().getLocalPlayer().getWorldLocation());
+				return WorldPoint.fromLocalInstance(Microbot.getClient(), l);
+			}
+			return Microbot.getClient().getLocalPlayer().getWorldLocation();
+		}).orElse(null);
+	}
+
+	/**
+	 * Retrieves the player's current {@link WorldView} from the client thread.
+	 *
+	 * @return The {@link WorldView} representing the player's current world view, or {@code null} if unavailable.
+	 */
+	public static WorldView getWorldView_Internal() {
+		return Microbot.getClientThread().runOnClientThreadOptional(() -> {
+			Player player = Microbot.getClient().getLocalPlayer();
+			if (player == null) return null;
+			return player.getWorldView();
+		}).orElse(null);
+	}
+
+	/**
+	 * Retrieves the player's current world location as a {@link WorldPoint}.
+	 *
+	 * <p>If the player is in an instanced world, the method converts the local position
+	 * to an instanced {@link WorldPoint}. Otherwise, it returns the player's standard
+	 * world location.</p>
+	 *
+	 * @return The {@link WorldPoint} representing the player's current location.
+	 */
+	public static WorldPoint getWorldLocation() {
+		return Microbot.getRs2PlayerStateCache().getLocalPlayerPosition();
+	}
+
+	/**
+	 * Retrieves the player's current {@link WorldView}.
+	 *
+	 * @return The {@link WorldView} representing the player's current world view, or {@code null} if unavailable.
+	 */
+	public static WorldView getWorldView() {
+		return Microbot.getRs2PlayerStateCache().getLocalPlayerWorldView();
+	}
 
     /**
      * Retrieves the player's current location as an {@link Rs2WorldPoint}.
@@ -1096,6 +1151,24 @@ public class Rs2Player {
     public static boolean isInMulti() {
         return Microbot.getVarbitValue(VarbitID.MULTIWAY_INDICATOR)
                 == 1;
+    }
+
+    /**
+     * Checks if the player is currently inside their Player Owned House (POH).
+     *
+     * <p>This is detected by verifying two conditions:</p>
+     * <ul>
+     *     <li>The current scene is an instanced region (all POHs are instanced).</li>
+     *     <li>The {@link VarbitID#POH_HOUSE_LOCATION} varbit is non-zero, which is
+     *         set whenever the player is inside a POH. This distinguishes the POH from
+     *         other instanced regions such as the Gauntlet or Hallowed Sepulchre.</li>
+     * </ul>
+     *
+     * @return {@code true} if the player is inside a POH, {@code false} otherwise.
+     */
+    public static boolean isInPoh() {
+        return Microbot.getClient().getTopLevelWorldView().getScene().isInstance()
+                && Microbot.getVarbitValue(VarbitID.POH_HOUSE_LOCATION) > 0;
     }
 
     public static boolean drinkPrayerPotion() {
@@ -1399,8 +1472,10 @@ public class Rs2Player {
      * @return The animation ID of the player's current action, or {@code -1} if the player is null.
      */
     public static int getAnimation() {
-        if (Microbot.getClient() == null || Microbot.getClient().getLocalPlayer() == null) return -1;
-        return Microbot.getClient().getLocalPlayer().getAnimation();
+        return Microbot.getClientThread().runOnClientThreadOptional(() -> {
+            if (Microbot.getClient() == null || Microbot.getClient().getLocalPlayer() == null) return -1;
+            return Microbot.getClient().getLocalPlayer().getAnimation();
+        }).orElse(-1);
     }
 
     /**
@@ -1409,7 +1484,9 @@ public class Rs2Player {
      * @return The pose animation ID of the player.
      */
     public static int getPoseAnimation() {
-        return Microbot.getClient().getLocalPlayer().getPoseAnimation();
+        return Microbot.getClientThread().runOnClientThreadOptional(() ->
+                Microbot.getClient().getLocalPlayer().getPoseAnimation()
+        ).orElse(-1);
     }
 
     /**
@@ -1419,11 +1496,7 @@ public class Rs2Player {
      * @return The {@link QuestState} representing the player's progress in the quest.
      */
     public static QuestState getQuestState(Quest quest) {
-        if (Microbot.isRs2CacheEnabled) {
-            return Rs2QuestCache.getQuestState(quest);
-        } else {
-            return Microbot.getRs2PlayerCache().getQuestState(quest);
-        }
+        return Microbot.getRs2PlayerStateCache().getQuestState(quest);
     }
 
     /**
@@ -1433,7 +1506,9 @@ public class Rs2Player {
      * @return The player's real level for the specified skill.
      */
     public static int getRealSkillLevel(Skill skill) {
-        return Microbot.getClient().getRealSkillLevel(skill);
+        return Microbot.getClientThread().runOnClientThreadOptional(() ->
+                Microbot.getClient().getRealSkillLevel(skill)
+        ).orElse(0);
     }
 
     /**
@@ -1442,8 +1517,10 @@ public class Rs2Player {
      * @param skill The {@link Skill} to check.
      * @return The player's boosted level for the specified skill.
      */
-    public static int getBoostedSkillLevel(Skill skill) {        
-        return Microbot.getClient().getBoostedSkillLevel(skill);
+    public static int getBoostedSkillLevel(Skill skill) {
+        return Microbot.getClientThread().runOnClientThreadOptional(() ->
+                Microbot.getClient().getBoostedSkillLevel(skill)
+        ).orElse(0);
     }
 
     /**
@@ -1752,7 +1829,14 @@ public class Rs2Player {
 
         // Invoke the menu entry using the selected action
         Microbot.doInvoke(
-                new NewMenuEntry(0, 0, menuAction.getId(), rs2Player.getId(), -1, rs2Player.getName(), rs2Player),
+                new NewMenuEntry()
+                        .param0(0)
+                        .param1(0)
+                        .opcode(menuAction.getId())
+                        .identifier(rs2Player.getId())
+                        .itemId(-1)
+                        .target(rs2Player.getName())
+                        .actor(rs2Player),
                 Rs2UiHelper.getActorClickbox(rs2Player)
         );
 

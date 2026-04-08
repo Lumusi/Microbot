@@ -1,6 +1,7 @@
 package net.runelite.client.plugins.microbot;
 
 import com.google.inject.Injector;
+import it.unimi.dsi.fastutil.ints.IntSet;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -32,13 +33,9 @@ import net.runelite.client.input.MouseManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginInstantiationException;
 import net.runelite.client.plugins.PluginManager;
-import net.runelite.client.plugins.loottracker.LootTrackerItem;
-import net.runelite.client.plugins.loottracker.LootTrackerPlugin;
 import net.runelite.client.plugins.loottracker.LootTrackerRecord;
 import net.runelite.client.plugins.microbot.configs.SpecialAttackConfigs;
 import net.runelite.client.plugins.microbot.pouch.PouchScript;
-import net.runelite.client.plugins.microbot.util.cache.Rs2VarPlayerCache;
-import net.runelite.client.plugins.microbot.util.cache.Rs2VarbitCache;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.item.Rs2ItemManager;
 import net.runelite.client.plugins.microbot.util.menu.NewMenuEntry;
@@ -46,7 +43,13 @@ import net.runelite.client.plugins.microbot.util.misc.Rs2UiHelper;
 import net.runelite.client.plugins.microbot.util.mouse.Mouse;
 import net.runelite.client.plugins.microbot.util.mouse.VirtualMouse;
 import net.runelite.client.plugins.microbot.util.mouse.naturalmouse.NaturalMouse;
-import net.runelite.client.plugins.microbot.util.player.Rs2PlayerCache;
+import net.runelite.client.plugins.microbot.api.boat.Rs2BoatCache;
+import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.player.Rs2PlayerCache;
+import net.runelite.client.plugins.microbot.api.playerstate.Rs2PlayerStateCache;
+import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
+import net.runelite.client.plugins.microbot.api.tileobject.Rs2TileObjectCache;
+import net.runelite.client.plugins.microbot.util.security.LoginManager;
 import net.runelite.client.plugins.microbot.util.widget.Rs2Widget;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
 import net.runelite.client.ui.overlay.tooltip.TooltipManager;
@@ -67,13 +70,9 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -192,30 +191,39 @@ public class Microbot {
     @Getter
     private static Rs2ItemManager rs2ItemManager = new Rs2ItemManager();
 
-    public static boolean loggedIn = false;
-
-    @Setter
-    private static Instant loginTime;
-
-    @Setter
+    @Inject
     @Getter
-    public static boolean isRs2CacheEnabled = false;
+    private static Rs2PlayerStateCache rs2PlayerStateCache;
+
+    @Inject
+    @Getter
+    private static Rs2NpcCache rs2NpcCache;
 
     @Inject
     @Getter
     private static Rs2PlayerCache rs2PlayerCache;
 
+    @Inject
+    @Getter
+    private static Rs2TileItemCache rs2TileItemCache;
+
+    @Inject
+    @Getter
+    private static Rs2TileObjectCache rs2TileObjectCache;
+
+    @Inject
+    @Getter
+    private static Rs2BoatCache rs2BoatCache;
+
+    @Getter
+    private static final Set<Integer> worldViewIds = ConcurrentHashMap.newKeySet();
     /**
      * Get the total runtime of the script
      *
      * @return the {@link Duration} the account has been logged in
      */
     public static Duration getLoginTime() {
-        if (loginTime == null) {
-            return Duration.of(0, ChronoUnit.MILLIS);
-        }
-
-        return Duration.between(loginTime, Instant.now());
+        return LoginManager.getLoginDuration();
     }
 
     /**
@@ -232,17 +240,11 @@ public class Microbot {
     }
 
     public static int getVarbitValue(@Varbit int varbit) {
-        if (isRs2CacheEnabled()) {
-            return Rs2VarbitCache.getVarbitValue(varbit);
-        }
-        return rs2PlayerCache.getVarbitValue(varbit);
+        return rs2PlayerStateCache.getVarbitValue(varbit);
     }
 
     public static int getVarbitPlayerValue(@Varp int varpId) {
-        if (isRs2CacheEnabled()) {
-            return Rs2VarPlayerCache.getVarPlayerValue(varpId);
-        }
-        return rs2PlayerCache.getVarpValue(varpId);
+        return rs2PlayerStateCache.getVarpValue(varpId);
     }
 
     public static EnumComposition getEnum(int id) {
@@ -280,10 +282,7 @@ public class Microbot {
     }
 
     public static boolean isLoggedIn() {
-        if (loggedIn) {
-            return true;
-        }
-        return false;
+        return LoginManager.isLoggedIn();
     }
 
     public static boolean isHopping() {
@@ -294,6 +293,10 @@ public class Microbot {
         return idx == GameState.HOPPING;
     }
 
+    /**
+     * Attempts to hop to the specified world, handling confirmation dialogs and guarding against unsafe states
+     * (interacting player, existing hop, invalid world). Returns {@code true} if a hop is initiated.
+     */
     public static boolean hopToWorld(int worldNumber) {
         if (!Microbot.isLoggedIn()) {
             return false;
@@ -564,16 +567,14 @@ public class Microbot {
         }
     }
 
+    @Deprecated(since = "Use LootTrackerPlugin.getAggregateLootRecords()", forRemoval = true)
     public static List<LootTrackerRecord> getAggregateLootRecords() {
-        return LootTrackerPlugin.panel.aggregateRecords;
+        return new ArrayList<>();
     }
 
+    @Deprecated(since = "Use LootTrackerPlugin.getAggregateLootRecords()", forRemoval = true)
     public static LootTrackerRecord getAggregateLootRecords(String npcName) {
-        return getAggregateLootRecords()
-                .stream()
-                .filter(x -> x.getTitle().equalsIgnoreCase(npcName))
-                .findFirst()
-                .orElse(null);
+        return null;
     }
 
     /**
@@ -583,24 +584,9 @@ public class Microbot {
      * @param npcName name of the npc to get the loot records for
      * @return total GE value of the loot records
      */
+    @Deprecated(since = "Use LootTrackerPlugin.getAggregateLootRecords()", forRemoval = true)
     public static long getAggregateLootRecordsTotalGevalue(String npcName) {
-        LootTrackerRecord record = getAggregateLootRecords(npcName);
-        if (record == null) {
-            return 0;
-        }
-
-        long totalGeValue = 0;
-        try {
-            LootTrackerItem[] items = record.getItems();
-            for (LootTrackerItem item : items) {
-                ;
-                totalGeValue += item.getTotalGePrice();
-            }
-        } catch (Exception e) {
-            log.error("Error calculating total GE value", e);
-        }
-
-        return totalGeValue;
+        return 0;
     }
 
     /**
@@ -825,4 +811,3 @@ public class Microbot {
                 .collect(Collectors.toList());
     }
 }
-

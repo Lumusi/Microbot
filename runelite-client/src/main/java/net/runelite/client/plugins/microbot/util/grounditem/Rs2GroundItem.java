@@ -31,6 +31,7 @@ import static net.runelite.client.plugins.microbot.util.Global.sleepUntil;
  * Todo: rework this class to not be dependant on the grounditem plugin
  */
 @Slf4j
+@Deprecated(since = "2.1.0 - Use Rs2TileItemCache/Rs2TileItemQuery instead", forRemoval = true)
 public class Rs2GroundItem {
     private static final int DESPAWN_DELAY_THRESHOLD_TICKS = 150;
 
@@ -108,12 +109,28 @@ public class Rs2GroundItem {
             if (localPoint1 != null) {
                 Polygon canvas = Perspective.getCanvasTilePoly(Microbot.getClient(), localPoint1);
                 if (canvas != null) {
-                    Microbot.doInvoke(new NewMenuEntry(action, param0, param1, menuAction.getId(), identifier, -1, target),
-                            canvas.getBounds());
+                    Microbot.doInvoke(new NewMenuEntry()
+                            .option(action)
+                            .param0(param0)
+                            .param1(param1)
+                            .opcode(menuAction.getId())
+                            .identifier(identifier)
+                            .itemId(-1)
+                            .target(target)
+                            ,
+                canvas.getBounds());
                 }
             } else {
-                Microbot.doInvoke(new NewMenuEntry(action, param0, param1, menuAction.getId(), identifier, -1, target),
-                        new Rectangle(1, 1, Microbot.getClient().getCanvasWidth(), Microbot.getClient().getCanvasHeight()));
+                Microbot.doInvoke(new NewMenuEntry()
+                        .option(action)
+                        .param0(param0)
+                        .param1(param1)
+                        .opcode(menuAction.getId())
+                        .identifier(identifier)
+                        .itemId(-1)
+                        .target(target)
+                        ,
+                new Rectangle(1, 1, Microbot.getClient().getCanvasWidth(), Microbot.getClient().getCanvasHeight()));
 
             }
         } catch (Exception ex) {
@@ -170,7 +187,7 @@ public class Rs2GroundItem {
     }
 
     public static RS2Item[] getAll(int range) {
-        return getAllFromWorldPoint(range, Microbot.getClient().getLocalPlayer().getWorldLocation());
+        return getAllFromWorldPoint(range, Rs2Player.getWorldLocation());
     }
 
     /**
@@ -294,7 +311,8 @@ public class Rs2GroundItem {
 
 
     private static Predicate<GroundItem> baseRangeAndOwnershipFilter(LootingParameters params) {
-        final WorldPoint me = Microbot.getClient().getLocalPlayer().getWorldLocation();
+        final WorldPoint me = Rs2Player.getWorldLocation();
+        if (me == null) return gi -> false;
         final boolean anti = params.isAntiLureProtection();
         return gi ->
                 gi.getLocation().distanceTo(me) < params.getRange() &&
@@ -526,7 +544,7 @@ public class Rs2GroundItem {
     public static boolean hasLineOfSight(Tile tile) {
         if (tile == null) return false;
         return tile.getWorldLocation().toWorldArea()
-                .hasLineOfSightTo(Microbot.getClient().getTopLevelWorldView(), Microbot.getClient().getLocalPlayer().getWorldLocation().toWorldArea());
+                .hasLineOfSightTo(Microbot.getClient().getTopLevelWorldView(), Rs2Player.getWorldLocation().toWorldArea());
     }
 
     /**

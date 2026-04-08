@@ -39,8 +39,12 @@ import net.runelite.client.externalplugins.ExternalPluginManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.microbot.MicrobotConfigManager;
+import net.runelite.client.plugins.microbot.breakhandler.breakhandlerv2.BreakHandlerV2Config;
+import net.runelite.client.plugins.microbot.breakhandler.breakhandlerv2.PluginStopHelper;
+import net.runelite.client.plugins.microbot.breakhandler.breakhandlerv2.PluginStopOption;
 import net.runelite.client.plugins.microbot.inventorysetups.InventorySetup;
 import net.runelite.client.plugins.microbot.inventorysetups.MInventorySetupsPlugin;
+import net.runelite.client.plugins.microbot.mouserecorder.MouseMacroRecorderPlugin;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.DynamicGridLayout;
 import net.runelite.client.ui.FontManager;
@@ -358,9 +362,14 @@ class MicrobotConfigPanel extends MicrobotPluginPanel {
                 configEntryName.setToolTipText("<html>" + name + ":<br>" + description + "</html>");
             }
             MicrobotPluginListItem.addLabelPopupMenu(configEntryName, createResetMenuItem(pluginConfig, cid));
-            item.add(configEntryName, BorderLayout.CENTER);
+            boolean isButtonItem = cid.getType() == ConfigButton.class;
+            if (!isButtonItem) {
+                item.add(configEntryName, BorderLayout.CENTER);
+            }
 
-            if (cid.getType() == boolean.class) {
+            if (isBreakHandlerStopConfig(cd, cid)) {
+                item.add(createPluginStopComboBox(cd, cid), BorderLayout.EAST);
+            } else if (cid.getType() == boolean.class) {
                 item.add(createCheckbox(cd, cid), BorderLayout.EAST);
             } else if (cid.getType() == int.class) {
                 item.add(createIntSpinner(cd, cid), BorderLayout.EAST);
@@ -368,6 +377,8 @@ class MicrobotConfigPanel extends MicrobotPluginPanel {
                 item.add(createDoubleSpinner(cd, cid), BorderLayout.EAST);
             } else if (cid.getType() == String.class) {
                 item.add(createTextField(cd, cid), BorderLayout.SOUTH);
+            } else if (cid.getType() == ConfigButton.class) {
+                item.add(createActionButton(cd, cid), BorderLayout.CENTER);
             } else if (cid.getType() == Color.class) {
                 item.add(createColorPicker(cd, cid), BorderLayout.EAST);
             } else if (cid.getType() == Dimension.class) {
@@ -425,6 +436,53 @@ class MicrobotConfigPanel extends MicrobotPluginPanel {
 
         revalidate();
         applyFilter();
+    }
+
+    private boolean isBreakHandlerStopConfig(ConfigDescriptor cd, ConfigItemDescriptor cid) {
+        return BreakHandlerV2Config.configGroup.equals(cd.getGroup().value())
+                && "pluginToStop".equals(cid.getItem().keyName());
+    }
+
+    private JComboBox<PluginStopOption> createPluginStopComboBox(ConfigDescriptor cd, ConfigItemDescriptor cid) {
+        List<PluginStopOption> options = PluginStopHelper.buildOptions(pluginManager);
+        JComboBox<PluginStopOption> box = new JComboBox<>(new DefaultComboBoxModel<>(options.toArray(new PluginStopOption[0])));
+
+        box.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof PluginStopOption) {
+                    setText(((PluginStopOption) value).getDisplayName());
+                }
+                return this;
+            }
+        });
+
+        String storedRaw = configManager.getConfiguration(cd.getGroup().value(), cid.getItem().keyName());
+        String normalized = PluginStopHelper.normalizeStoredValue(storedRaw, pluginManager);
+        PluginStopOption selected = options.stream()
+                .filter(opt -> opt.getClassName().equals(normalized))
+                .findFirst()
+                .orElse(PluginStopOption.none());
+
+        // migrate legacy enum values to class names
+        if (!Objects.equals(storedRaw, normalized)) {
+            configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), normalized);
+        }
+
+        box.setSelectedItem(selected);
+        box.setToolTipText(selected.getDisplayName());
+        box.setPreferredSize(new Dimension(box.getPreferredSize().width, 22));
+
+        box.addItemListener(e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                PluginStopOption opt = (PluginStopOption) e.getItem();
+                configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), opt.getClassName());
+                box.setToolTipText(opt.getDisplayName());
+            }
+        });
+
+        return box;
     }
 
     private void buildInformationPanel(ConfigInformation ci) {
@@ -766,6 +824,19 @@ class MicrobotConfigPanel extends MicrobotPluginPanel {
         return list;
     }
 
+    private JButton createActionButton(ConfigDescriptor cd, ConfigItemDescriptor cid) {
+        JButton button = new JButton(cid.getItem().name());
+        button.addActionListener(e -> {
+            ConfigButton next = new ConfigButton(UUID.randomUUID().toString());
+            configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), next);
+            if (MouseMacroRecorderPlugin.CONFIG_GROUP.equals(cd.getGroup().value())
+                    && "openRecordingsFolder".equals(cid.getItem().keyName())) {
+                MouseMacroRecorderPlugin.openRecordingsFolderStatic();
+            }
+        });
+        return button;
+    }
+
     private void changeConfiguration(Component component, ConfigDescriptor cd, ConfigItemDescriptor cid) {
         final ConfigItem configItem = cid.getItem();
 
@@ -794,7 +865,12 @@ class MicrobotConfigPanel extends MicrobotPluginPanel {
             configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), colorPicker.getSelectedColor().getRGB() + "");
         } else if (component instanceof JComboBox) {
             JComboBox jComboBox = (JComboBox) component;
-            configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), ((Enum) jComboBox.getSelectedItem()).name());
+            Object selected = jComboBox.getSelectedItem();
+            if (selected instanceof Enum) {
+                configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), ((Enum<?>) selected).name());
+            } else {
+                configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), selected != null ? selected.toString() : "");
+            }
         } else if (component instanceof MicrobotHotkeyButton) {
             MicrobotHotkeyButton hotkeyButton = (MicrobotHotkeyButton) component;
             configManager.setConfiguration(cd.getGroup().value(), cid.getItem().keyName(), hotkeyButton.getValue());
