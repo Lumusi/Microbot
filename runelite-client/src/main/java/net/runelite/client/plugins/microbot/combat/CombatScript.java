@@ -43,19 +43,18 @@ public class CombatScript extends Script {
     private int lootCount = 0;
     private long startTime;
 
-    @Override
-    public boolean run(Client client) {
+    public boolean run(CombatPlugin plugin) {
         log.info("Combat Script started!");
         
-        if (!(plugin instanceof CombatPlugin)) {
-            log.error("Plugin is not CombatPlugin!");
+        if (plugin == null) {
+            log.error("Plugin is null!");
             return false;
         }
         
-        this.config = ((CombatPlugin) plugin).getConfig();
+        this.config = plugin.getConfig();
         this.startTime = System.currentTimeMillis();
         
-        mainLoop();
+        mainLoop(plugin.getClient());
         
         return true;
     }
@@ -63,10 +62,10 @@ public class CombatScript extends Script {
     /**
      * The main combat loop that runs continuously while the script is active.
      */
-    public void mainLoop() {
+    public void mainLoop(Client client) {
         try {
             // Wait for game to be in LOGGED_IN state
-            sleepUntil(() -> client.getGameState() == GameState.LOGGED_IN);
+            sleepUntil(() -> Microbot.getClient().getGameState() == GameState.LOGGED_IN);
             
             // Initialize combat settings
             initializeCombat();
@@ -98,16 +97,16 @@ public class CombatScript extends Script {
                 }
 
                 // Find and select target
-                if (currentTarget == null || currentTarget.isDead() || currentTarget.getNpc() == null) {
-                    currentTarget = findNextTarget();
+                if (currentTarget == null || currentTarget.isDead()) {
+                    currentTarget = findNextTarget(client);
                     if (currentTarget != null) {
                         log.info("New target selected: {}", currentTarget.getName());
                     }
                 }
 
                 // If we have a target, engage in combat
-                if (currentTarget != null && currentTarget.getNpc() != null) {
-                    handleCombat();
+                if (currentTarget != null) {
+                    handleCombat(client);
                 } else {
                     // No target found, maybe move to spawn area or wait
                     waitForSpawn();
@@ -141,15 +140,15 @@ public class CombatScript extends Script {
     /**
      * Find the next NPC to attack based on configuration.
      */
-    private Rs2NpcModel findNextTarget() {
+    private Rs2NpcModel findNextTarget(Client client) {
         List<Rs2NpcModel> npcs;
         
         // Get NPCs based on configuration
         if (config.npcName() != null && !config.npcName().isEmpty()) {
-            npcs = Rs2Npc.getNpcs(config.npcName());
+            npcs = Rs2Npc.getNpcs(config.npcName()).toList();
         } else {
             // Get all attackable NPCs
-            npcs = Rs2Npc.getNpcs();
+            npcs = Rs2Npc.getNpcs().toList();
         }
         
         if (npcs == null || npcs.isEmpty()) {
@@ -158,7 +157,7 @@ public class CombatScript extends Script {
 
         // Filter out already dead NPCs and those in combat with other players
         npcs = npcs.stream()
-                .filter(npc -> npc != null && npc.getNpc() != null && npc.getHealth() > 0)
+                .filter(npc -> npc != null && npc.getHealthRatio() > 0)
                 .collect(Collectors.toList());
 
         if (npcs.isEmpty()) {
@@ -167,7 +166,7 @@ public class CombatScript extends Script {
 
         // Sort based on configuration
         if (config.prioritizeLowestHealth()) {
-            npcs.sort(Comparator.comparingInt(Rs2NpcModel::getHealth));
+            npcs.sort(Comparator.comparingInt(Rs2NpcModel::getHealthRatio));
         } else if (config.prioritizeClosest()) {
             WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
             npcs.sort(Comparator.comparingInt(npc -> 
@@ -180,17 +179,17 @@ public class CombatScript extends Script {
     /**
      * Handle combat with the current target.
      */
-    private void handleCombat() {
-        if (currentTarget == null || currentTarget.getNpc() == null) {
+    private void handleCombat(Client client) {
+        if (currentTarget == null) {
             return;
         }
 
-        Actor interacting = currentTarget.getNpc().getInteracting();
+        Actor interacting = currentTarget.getInteracting();
         boolean isInCombat = interacting == client.getLocalPlayer();
 
         // Check if we need to move closer to attack
-        if (!isInCombat && !isInRange(currentTarget)) {
-            moveToTarget(currentTarget);
+        if (!isInCombat && !isInRange(client, currentTarget)) {
+            moveToTarget(client, currentTarget);
             return;
         }
 
@@ -201,7 +200,7 @@ public class CombatScript extends Script {
         }
 
         // Attack if not already attacking
-        if (!isInCombat && canAttack(currentTarget)) {
+        if (!isInCombat && canAttack(client, currentTarget)) {
             attackNpc(currentTarget);
         }
     }
@@ -209,8 +208,8 @@ public class CombatScript extends Script {
     /**
      * Check if player is within attack range of target.
      */
-    private boolean isInRange(Rs2NpcModel target) {
-        if (target == null || target.getNpc() == null) {
+    private boolean isInRange(Client client, Rs2NpcModel target) {
+        if (target == null) {
             return false;
         }
         
@@ -226,8 +225,8 @@ public class CombatScript extends Script {
     /**
      * Move to target if out of range.
      */
-    private void moveToTarget(Rs2NpcModel target) {
-        if (target == null || target.getNpc() == null) {
+    private void moveToTarget(Client client, Rs2NpcModel target) {
+        if (target == null) {
             return;
         }
         
@@ -254,8 +253,8 @@ public class CombatScript extends Script {
     /**
      * Check if we can attack the target.
      */
-    private boolean canAttack(Rs2NpcModel target) {
-        if (target == null || target.getNpc() == null) {
+    private boolean canAttack(Client client, Rs2NpcModel target) {
+        if (target == null) {
             return false;
         }
         
@@ -277,7 +276,7 @@ public class CombatScript extends Script {
      * Attack the specified NPC.
      */
     private void attackNpc(Rs2NpcModel target) {
-        if (target == null || target.getNpc() == null) {
+        if (target == null) {
             return;
         }
         
@@ -289,7 +288,7 @@ public class CombatScript extends Script {
      * Check if player should eat food.
      */
     private boolean shouldEat() {
-        int healthPercent = Rs2Player.getHealthPercent();
+        double healthPercent = Rs2Player.getHealthPercentage();
         return healthPercent <= config.eatAtHealthPercent();
     }
 
@@ -297,15 +296,15 @@ public class CombatScript extends Script {
      * Eat food from inventory.
      */
     private void eatFood() {
-        log.info("Eating food - health at {}%", Rs2Player.getHealthPercent());
+        log.info("Eating food - health at {}%", Rs2Player.getHealthPercentage());
         
         // Try to eat sharks first, then any food
         if (Rs2Inventory.contains("Shark")) {
-            Rs2Inventory.consume("Shark");
+            Rs2Inventory.interact("Shark", "Eat");
         } else if (Rs2Inventory.contains("Manta ray")) {
-            Rs2Inventory.consume("Manta ray");
+            Rs2Inventory.interact("Manta ray", "Eat");
         } else if (Rs2Inventory.contains("Anglerfish")) {
-            Rs2Inventory.consume("Anglerfish");
+            Rs2Inventory.interact("Anglerfish", "Eat");
         } else {
             // Eat any food item
             List<String> foods = Arrays.asList("Trout", "Salmon", "Tuna", "Swordfish", 
@@ -315,7 +314,7 @@ public class CombatScript extends Script {
             
             for (String food : foods) {
                 if (Rs2Inventory.contains(food)) {
-                    Rs2Inventory.consume(food);
+                    Rs2Inventory.interact(food, "Eat");
                     break;
                 }
             }
@@ -328,7 +327,7 @@ public class CombatScript extends Script {
      * Check if player should drink prayer potion.
      */
     private boolean shouldDrinkPrayerPotion() {
-        int prayerPercent = Rs2Player.getPrayerPercent();
+        int prayerPercent = Rs2Player.getPrayerPercentage();
         return prayerPercent <= config.prayerThreshold();
     }
 
@@ -336,24 +335,24 @@ public class CombatScript extends Script {
      * Drink prayer potion from inventory.
      */
     private void drinkPrayerPotion() {
-        log.info("Drinking prayer potion - prayer at {}%", Rs2Player.getPrayerPercent());
+        log.info("Drinking prayer potion - prayer at {}%", Rs2Player.getPrayerPercentage());
         
         if (Rs2Inventory.contains("Super restore(4)")) {
-            Rs2Inventory.consume("Super restore(4)");
+            Rs2Inventory.interact("Super restore(4)", "Drink");
         } else if (Rs2Inventory.contains("Super restore(3)")) {
-            Rs2Inventory.consume("Super restore(3)");
+            Rs2Inventory.interact("Super restore(3)", "Drink");
         } else if (Rs2Inventory.contains("Super restore(2)")) {
-            Rs2Inventory.consume("Super restore(2)");
+            Rs2Inventory.interact("Super restore(2)", "Drink");
         } else if (Rs2Inventory.contains("Super restore(1)")) {
-            Rs2Inventory.consume("Super restore(1)");
+            Rs2Inventory.interact("Super restore(1)", "Drink");
         } else if (Rs2Inventory.contains("Prayer potion(4)")) {
-            Rs2Inventory.consume("Prayer potion(4)");
+            Rs2Inventory.interact("Prayer potion(4)", "Drink");
         } else if (Rs2Inventory.contains("Prayer potion(3)")) {
-            Rs2Inventory.consume("Prayer potion(3)");
+            Rs2Inventory.interact("Prayer potion(3)", "Drink");
         } else if (Rs2Inventory.contains("Prayer potion(2)")) {
-            Rs2Inventory.consume("Prayer potion(2)");
+            Rs2Inventory.interact("Prayer potion(2)", "Drink");
         } else if (Rs2Inventory.contains("Prayer potion(1)")) {
-            Rs2Inventory.consume("Prayer potion(1)");
+            Rs2Inventory.interact("Prayer potion(1)", "Drink");
         }
         
         sleep(600, 1200);
@@ -371,7 +370,7 @@ public class CombatScript extends Script {
         }
         
         if (config.specialOnLowHealth() && currentTarget != null) {
-            int npcHealthPercent = currentTarget.getHealthPercent();
+            double npcHealthPercent = currentTarget.getHealthPercentage();
             return npcHealthPercent <= config.lowHealthThreshold();
         }
         
@@ -382,12 +381,12 @@ public class CombatScript extends Script {
      * Check if there are players nearby.
      */
     private boolean isPlayerNearby() {
-        if (client.getLocalPlayer() == null) {
+        if (Microbot.getClient().getLocalPlayer() == null) {
             return false;
         }
         
-        WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
-        List<Player> players = client.getPlayers();
+        WorldPoint playerLocation = Microbot.getClient().getLocalPlayer().getWorldLocation();
+        List<Player> players = Microbot.getClient().getPlayers();
         
         if (players == null) {
             return false;
@@ -431,21 +430,24 @@ public class CombatScript extends Script {
             return;
         }
         
-        List<Rs2ItemModel> groundItems = Rs2GroundItem.getItems();
+        List<RS2Item> groundItems = Rs2GroundItem.getAll(15);
         
-        if (groundItems == null || groundItems.isEmpty()) {
+        if (groundItems == null || groundItems.length == 0) {
             return;
         }
         
         // Parse specific items to loot
         List<String> specificItems = parseSpecificItems();
         
-        for (Rs2ItemModel item : groundItems) {
-            if (shouldLoot(item, specificItems)) {
-                log.info("Looting: {}", item.getName());
-                Rs2GroundItem.loot(item.getName());
-                lootCount++;
-                sleep(300, 600);
+        for (RS2Item item : groundItems) {
+            if (item != null && item.getItem() != null) {
+                String itemName = item.getItem().getName();
+                if (shouldLootByName(itemName, specificItems)) {
+                    log.info("Looting: {}", itemName);
+                    Rs2GroundItem.loot(itemName, 15);
+                    lootCount++;
+                    sleep(300, 600);
+                }
             }
         }
     }
@@ -465,20 +467,20 @@ public class CombatScript extends Script {
     }
 
     /**
-     * Determine if an item should be looted.
+     * Determine if an item should be looted by name.
      */
-    private boolean shouldLoot(Rs2ItemModel item, List<String> specificItems) {
-        String itemName = item.getName().toLowerCase();
+    private boolean shouldLootByName(String itemName, List<String> specificItems) {
+        String lowerItemName = itemName.toLowerCase();
         
         // Always loot specific items
         for (String specific : specificItems) {
-            if (itemName.contains(specific.toLowerCase())) {
+            if (lowerItemName.contains(specific.toLowerCase())) {
                 return true;
             }
         }
         
         // Loot bones if configured
-        if (config.lootBones() && itemName.contains("bones")) {
+        if (config.lootBones() && lowerItemName.contains("bones")) {
             return true;
         }
         

@@ -50,8 +50,7 @@ public class CombatOverlay extends Overlay {
         }
 
         panelComponent.getChildren().clear();
-        panelComponent.setTitle("Combat Plugin");
-        panelComponent.setTitleColor(ComponentConstants.STANDARD_TITLE_COLOR);
+        panelComponent.setTitleColor(ComponentConstants.COLOR_OFF_WHITE);
 
         // Add script status
         panelComponent.getChildren().add(LineComponent.builder()
@@ -65,7 +64,7 @@ public class CombatOverlay extends Overlay {
         if (script != null) {
             Rs2NpcModel target = script.getCurrentTarget();
             
-            if (target != null && target.getNpc() != null) {
+            if (target != null) {
                 panelComponent.getChildren().add(LineComponent.builder()
                         .left("Target:")
                         .right(target.getName())
@@ -73,8 +72,8 @@ public class CombatOverlay extends Overlay {
                 
                 panelComponent.getChildren().add(LineComponent.builder()
                         .left("Target Health:")
-                        .right(target.getHealth() + "/" + target.getMaxHealth())
-                        .rightColor(getHealthColor(target.getHealthPercent()))
+                        .right(target.getHealthRatio() + "/" + target.getHealthScale())
+                        .rightColor(getHealthColor((int)target.getHealthPercentage()))
                         .build());
                 
                 // Highlight target on canvas
