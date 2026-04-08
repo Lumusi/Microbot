@@ -8,7 +8,6 @@ import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayPriority;
-import net.runelite.client.ui.overlay.components.ComponentConstants;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
@@ -50,7 +49,7 @@ public class CombatOverlay extends Overlay {
         }
 
         panelComponent.getChildren().clear();
-        panelComponent.setTitleColor(ComponentConstants.COLOR_OFF_WHITE);
+        panelComponent.setTitleColor(Color.WHITE);
 
         // Add script status
         panelComponent.getChildren().add(LineComponent.builder()
@@ -124,11 +123,11 @@ public class CombatOverlay extends Overlay {
      * Highlight the current target on the game canvas.
      */
     private void highlightTarget(Graphics2D graphics, Rs2NpcModel target) {
-        if (target == null || target.getNpc() == null) {
+        if (target == null || target.getRuneliteNpc() == null) {
             return;
         }
 
-        NPC npc = target.getNpc();
+        NPC npc = target.getRuneliteNpc();
         LocalPoint localPoint = npc.getLocalLocation();
         
         if (localPoint == null) {
@@ -140,12 +139,11 @@ public class CombatOverlay extends Overlay {
         
         if (objectClickBox != null) {
             Graphics2D g2d = (Graphics2D) graphics.create();
-            g2d.setColor(config.overlayColor() != null ? config.overlayColor() : Color.RED);
+            Color overlayColor = config.overlayColor() != null ? config.overlayColor() : Color.RED;
+            g2d.setColor(overlayColor);
             g2d.setStroke(new BasicStroke(2));
             g2d.draw(objectClickBox);
-            g2d.setColor(new Color(config.overlayColor() != null ? config.overlayColor().getRed() : 255, 
-                    config.overlayColor() != null ? config.overlayColor().getGreen() : 0, 
-                    0, 50));
+            g2d.setColor(new Color(overlayColor.getRed(), overlayColor.getGreen(), 0, 50));
             g2d.fill(objectClickBox);
             g2d.dispose();
         }
