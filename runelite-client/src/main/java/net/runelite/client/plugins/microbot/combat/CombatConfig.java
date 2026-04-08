@@ -5,6 +5,8 @@ import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 
+import java.awt.Color;
+
 /**
  * Configuration for the Combat Plugin.
  * 
@@ -84,6 +86,28 @@ public interface CombatConfig extends Config {
     )
     default boolean autoRetaliate() {
         return true;
+    }
+
+    @ConfigItem(
+        keyName = "autoStart",
+        name = "Auto Start",
+        description = "Automatically start the combat script when logged in",
+        section = GENERAL_SECTION,
+        position = 3
+    )
+    default boolean autoStart() {
+        return false;
+    }
+
+    @ConfigItem(
+        keyName = "overlayColor",
+        name = "Overlay Color",
+        description = "Color of the overlay highlight",
+        section = GENERAL_SECTION,
+        position = 4
+    )
+    default Color overlayColor() {
+        return Color.RED;
     }
 
     // Targeting Settings

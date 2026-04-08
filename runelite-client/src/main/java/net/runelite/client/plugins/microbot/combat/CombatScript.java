@@ -11,11 +11,13 @@ import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
 import net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
+import net.runelite.client.plugins.microbot.util.models.RS2Item;
 import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
 import net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
 
+import java.awt.*;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -145,10 +147,10 @@ public class CombatScript extends Script {
         
         // Get NPCs based on configuration
         if (config.npcName() != null && !config.npcName().isEmpty()) {
-            npcs = Rs2Npc.getNpcs(config.npcName()).toList();
+            npcs = Rs2Npc.getNpcs(config.npcName()).collect(Collectors.toList());
         } else {
             // Get all attackable NPCs
-            npcs = Rs2Npc.getNpcs().toList();
+            npcs = Rs2Npc.getNpcs().collect(Collectors.toList());
         }
         
         if (npcs == null || npcs.isEmpty()) {
@@ -259,12 +261,12 @@ public class CombatScript extends Script {
         }
         
         // Check line of sight
-        if (!client.getLocalPlayer().hasLineOfSightTo(target.getNpc())) {
+        if (!client.getLocalPlayer().hasLineOfSightTo(target.getRuneliteNpc())) {
             return false;
         }
         
         // Check if NPC is already in combat with another player
-        Actor interacting = target.getNpc().getInteracting();
+        Actor interacting = target.getRuneliteNpc().getInteracting();
         if (interacting != null && interacting != client.getLocalPlayer()) {
             return false;
         }
@@ -430,9 +432,9 @@ public class CombatScript extends Script {
             return;
         }
         
-        List<RS2Item> groundItems = Rs2GroundItem.getAll(15);
+        List<RS2Item> groundItems = Arrays.asList(Rs2GroundItem.getAll(15));
         
-        if (groundItems == null || groundItems.length == 0) {
+        if (groundItems == null || groundItems.isEmpty()) {
             return;
         }
         
