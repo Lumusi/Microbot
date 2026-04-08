@@ -6,16 +6,19 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.plugins.microbot.Microbot;
 import net.runelite.client.plugins.microbot.Script;
+import net.runelite.client.plugins.microbot.api.npc.Rs2NpcCache;
+import net.runelite.client.plugins.microbot.api.npc.models.Rs2NpcModel;
+import net.runelite.client.plugins.microbot.api.tileitem.Rs2TileItemCache;
+import net.runelite.client.plugins.microbot.api.tileitem.models.Rs2TileItemModel;
 import net.runelite.client.plugins.microbot.util.combat.Rs2Combat;
 import net.runelite.client.plugins.microbot.util.equipment.Rs2Equipment;
-import net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2Inventory;
 import net.runelite.client.plugins.microbot.util.inventory.Rs2ItemModel;
 import net.runelite.client.plugins.microbot.util.models.RS2Item;
 import net.runelite.client.plugins.microbot.util.npc.Rs2Npc;
-import net.runelite.client.plugins.microbot.util.npc.Rs2NpcModel;
 import net.runelite.client.plugins.microbot.util.player.Rs2Player;
 import net.runelite.client.plugins.microbot.util.walker.Rs2Walker;
+import net.runelite.client.plugins.microbot.util.grounditem.Rs2GroundItem;
 
 import java.awt.*;
 import java.util.Arrays;
@@ -260,8 +263,14 @@ public class CombatScript extends Script {
             return false;
         }
         
-        // Check line of sight
-        if (!client.getLocalPlayer().hasLineOfSightTo(target.getRuneliteNpc())) {
+        // Check line of sight using WorldArea
+        WorldPoint playerLocation = client.getLocalPlayer().getWorldLocation();
+        WorldPoint npcLocation = target.getWorldLocation();
+        if (playerLocation == null || npcLocation == null) {
+            return false;
+        }
+        
+        if (!playerLocation.toWorldArea().hasLineOfSightTo(client.getTopLevelWorldView(), npcLocation)) {
             return false;
         }
         

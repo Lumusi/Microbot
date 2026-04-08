@@ -10,6 +10,7 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayPriority;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
+import net.runelite.client.ui.overlay.components.TitleComponent;
 import net.runelite.client.ui.overlay.worldmap.WorldMapPoint;
 
 import javax.inject.Inject;
@@ -49,7 +50,12 @@ public class CombatOverlay extends Overlay {
         }
 
         panelComponent.getChildren().clear();
-        panelComponent.setTitleColor(Color.WHITE);
+        
+        // Add title with color
+        panelComponent.getChildren().add(TitleComponent.builder()
+                .text("Combat Script")
+                .color(Color.WHITE)
+                .build());
 
         // Add script status
         panelComponent.getChildren().add(LineComponent.builder()
